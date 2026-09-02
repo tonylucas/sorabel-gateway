@@ -113,22 +113,66 @@ un quota pour reformuler ce qu'on a déjà.
 
 ---
 
-## 4 · Text-to-SQL
+## 4 · Text-to-SQL — **fait**
 
-- `make migrate` — SQLite → **PostgreSQL local** (docker). `data/sorabel.db`
-  reste : `conftest.py` s'en sert pour calculer les attendus.
-- `sql/schema.py` — introspection : le dict pour `sqlglot` **et** le DDL commenté
-  du prompt viennent de la même source
-- `sql/guard.py` — 5 étapes : parsing, périmètre, `LIMIT`, `EXPLAIN`, plafond de
-  coût. Retry (1 max) **uniquement** après une erreur de syntaxe
-- `sql/generate.py` — tri avant génération, 7 few-shots, `payload.rows` en
-  **liste de listes**
-- `check_stock(reference)` / `order_status(order_id)` — SQL paramétré, sans LLM
+- `sql/schema.py` — `docs/schema.sql` lu **une seule fois** : il produit le DDL
+  commenté du prompt *et* le dictionnaire de colonnes de `sqlglot.qualify()`.
+  Ce que le modèle croit interrogeable ne peut pas diverger de ce que le garde
+  autorise. Filtré par profil, comme tout le reste.
+- `sql/guard.py` — trois refus, la sécurité avant la base : un seul `SELECT`
+  (`write_attempt`), tables et colonnes du profil (`forbidden_column`), puis
+  `LIMIT` injecté et `EXPLAIN`.
+- `sql/generate.py` — **tri et génération en un seul appel** : le modèle répond
+  en JSON avec une décision parmi `sql` / `ecriture` / `hors_schema` / `ambigue`.
+  Deux appels doubleraient la latence pour une décision qu'il prend de toute
+  façon en lisant le schéma.
+- `sql/db.py` — connexion `mode=ro` + `PRAGMA query_only`, `rows` en liste de
+  listes.
+- `check_stock(reference)` / `order_status(order_id)` — SQL paramétré, sans LLM.
 
-**Vérification** : `test_sql.py` au vert (4 tests). Dans le bot : « combien de
-commandes en avril ? » répond juste, avec le SQL dépliable.
+**Vérification** : `make test` est **entièrement vert** — 61 tests, dont les 4
+d'acceptance SQL. `make eval-sql` donne **24/24** sur `eval/questions_sql.jsonl`
+(`eval/rapport_sql.md`), les trois quarts du jeu se jouant en *refusant*.
 
----
+**Le prompt est filtré par profil sur trois plans** — DDL, exemples et
+consignes. Le support ne lit nulle part les mots `ventes`, `marge_pct`,
+`marge_ht`, `prix_achat_ht` : il ne peut pas produire la requête qu'on lui
+refuserait, et il n'apprend pas au passage ce qu'on lui cache. Épinglé par
+`tests/test_guard.py`, qui tourne sans appeler le modèle.
+
+Conséquence : les quatre cas `table_interdite` sont refusés en `out_of_schema`
+plutôt qu'en `forbidden_column` — le modèle ne voit pas la colonne, la requête
+interdite n'est jamais produite. `forbidden_column` reste la réponse du garde
+quand elle l'est malgré tout, couvert par les tests unitaires.
+
+**Deux mesures qui ont changé le code**, et non l'inverse :
+
+- Le DDL fourni annote les colonnes sensibles d'un `-- SENSIBLE : … — ne sort
+  jamais pour le profil support`. Ces annotations sont **retirées** du DDL
+  envoyé au modèle : le filtrage par profil ayant déjà ôté la colonne à qui
+  elle est interdite, la phrase ne décrivait plus qu'une règle inapplicable au
+  lecteur — et le modèle, lisant « ne sort jamais », refusait. SQL-11 est passé
+  de 1/3 à 5/5.
+- Le jeu de few-shots du dossier de conception n'enseignait pas l'agrégation sur
+  `ventes` filtrée par période, qui exige la jointure vers `commandes`. Un
+  huitième exemple l'enseigne — sur une question différente de SQL-11 : on
+  apprend la jointure, pas la réponse.
+
+**Toujours sur SQLite.** La bascule PostgreSQL est reportée à l'étape 6, où elle
+sert à quelque chose : `conftest.py` calcule ses attendus sur `data/sorabel.db`,
+la CI n'a pas de service Postgres, et le dialecte tient dans la constante
+`sql.schema.DIALECT`. À l'étape 5, les `GRANT` colonne par colonne deviendront
+la source de vérité de `sql_scope()` — dont la signature ne bougera pas.
+
+**Écarté, pas oublié** : le retry après erreur de syntaxe (le free tier répond
+entre 1 s et 30 s, un second appel ferait sauter le budget de 30 s de la suite),
+et le plafond de coût `EXPLAIN` (SQLite n'estime pas de coût — à reprendre avec
+PostgreSQL, où `EXPLAIN` en donne un).
+
+**Risque connu** : le free tier plafonne à **15 requêtes/minute** par modèle et
+par projet, et rend des `504` sporadiques. `make eval-sql` cadence ses appels et
+compte les incidents à part ; la CI relève `GATEWAY_TEST_TIMEOUT` à 60 s. Un
+projet facturé ou Vertex AI supprime les deux.
 
 ## 5 · Matrice d'accès et gouvernance
 
@@ -170,7 +214,10 @@ commandes en avril ? » répond juste, avec le SQL dépliable.
 
 - **Seuil de pertinence** (E1) et **pondération RRF** — à calibrer sur le jeu
   d'éval, pas à choisir d'avance.
-- **Plafond de coût SQL** — à régler pour qu'aucune des 12 questions métier
-  légitimes ne tombe dessus.
+- **Plafond de coût SQL** — sans objet sur SQLite, qui n'estime pas de coût. À
+  régler à l'étape 6, sur PostgreSQL.
+- **`get_schema` pour `commercial`** — le `conftest.py` fourni l'accorde aux
+  deux profils ; le dossier de conception le réservait au `dev`. La suite
+  d'acceptance fait foi, la matrice suit — à trancher dans le dossier.
 - **Profil `dev`** — prévu par la conception, absent des tests fournis. À ajouter
   seulement s'il sert la démo.

@@ -5,9 +5,9 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 ## Features
 
 - Recherche documentaire hybride : dense + lexicale fusionnées par RRF, routage par référence exacte, réponses sourcées (titre + référence + date), refus explicite hors corpus — **gain mesuré dans `eval/rapport_gain.md`**
-- Accès aux données en langage naturel : génération SQL lecture seule, périmètre de tables par profil, requête toujours renvoyée avec le résultat (à construire)
-- Tools figés pour les besoins récurrents : `check_stock`, `order_status` (à construire)
-- Serveur MCP unique exposant les 8 tools du catalogue, sous matrice d'accès par profil (`support`, `commercial`, `dev`) avec journalisation de chaque appel — matrice et journal en place, moteurs en cours
+- Accès aux données en langage naturel : génération Gemini, **validation `sqlglot` avant exécution**, connexion en lecture seule, `LIMIT` injecté, périmètre de tables et de colonnes par profil, requête toujours renvoyée avec le résultat — **24/24 sur `eval/questions_sql.jsonl`**
+- Tools figés pour les besoins récurrents, sans LLM : `check_stock`, `order_status`
+- Serveur MCP unique exposant les 8 tools du catalogue, sous matrice d'accès par profil (`support`, `commercial`, `dev`) avec journalisation de chaque appel
 - Données en place : base SQL générée par `scripts/seed.py`, corpus de 400 fichiers → 350 documents indexés après dédoublonnage par version
 - Client MCP de test jouable avec les deux profils, en stdio ou en HTTP (`scripts/mcp_client.py`)
 - App bot de démonstration (Next.js + CopilotKit, agent Gemini) branchée sur `/mcp` comme le serait Slack
@@ -17,7 +17,8 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 
 - Python 3.11 (géré avec `uv`)
 - Chroma pour l'index vectoriel (`docker compose`, port 8002)
-- SQLite pour la base (`data/sorabel.db`, générée par le seed, à ouvrir en lecture seule)
+- SQLite pour la base (`data/sorabel.db`, générée par le seed, ouverte en `mode=ro` + `PRAGMA query_only`) — PostgreSQL à l'étape 6
+- `sqlglot` pour valider le SQL généré avant exécution, `google-genai` pour le générer
 - `fastembed` pour les embeddings (ONNX, multilingue, ~250 Mo — pas de PyTorch) et `rank-bm25` pour la piste lexicale
 - SDK MCP (`mcp`) pour le serveur — deux canaux : stdio et Streamable HTTP sur `/mcp`
 - Next.js + CopilotKit (`ui/`) pour l'app bot, agent Gemini via l'AI SDK
@@ -30,7 +31,8 @@ make install      # uv sync
 make seed         # génère data/sorabel.db (déterministe, aligné sur le corpus)
 make ingest       # construit l'index documentaire (.chroma/) — requis avant make test
 make eval         # régénère eval/rapport_gain.md (E6)
-make test         # suite d'acceptance (rouge tant que la gateway n'est pas construite)
+make eval-sql     # joue eval/questions_sql.jsonl (24 appels Gemini ; TYPES=ecriture,ambigue pour n'en jouer qu'une part)
+make test         # suite d'acceptance — verte
 make serve        # serveur MCP stdio (profil via SORABEL_PROFILE)
 make serve-http   # serveur MCP Streamable HTTP sur http://127.0.0.1:8000/mcp
 make client       # client de test (PROFILE=support|commercial)
@@ -54,7 +56,7 @@ via Biome (`ui/biome.json`, réglages dans `.vscode/`) ; ESLint reste chargé de
 règles propres à Next.
 
 **Clés Gemini — une par service.** L'app bot lit `ui/.env`, le serveur Python
-lira le `.env` du dépôt : deux déploiements Cloud Run distincts à l'étape 6,
+lit le `.env` du dépôt (`GOOGLE_API_KEY`, pour `ask_database`) : deux déploiements Cloud Run distincts à l'étape 6,
 donc deux configurations. Les deux clés vivent côté serveur et n'atteignent
 jamais le navigateur (Next n'expose au bundle que les variables `NEXT_PUBLIC_*`).
 À créer sur [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
@@ -63,8 +65,12 @@ tier d'AI Studio (projet **sans** facturation), du prépaiement AI Studio, ou de
 Vertex AI. Un projet en prépaiement à zéro renvoie `429 RESOURCE_EXHAUSTED`
 sans repli sur le free tier.
 
-Modèle par défaut : `google/gemini-3.6-flash`, épinglé plutôt qu'un alias
-`-latest` pour que les mesures de E6 restent reproductibles.
+Modèles épinglés plutôt qu'un alias `-latest`, pour que les mesures restent
+reproductibles : `google/gemini-3.6-flash` pour l'agent du bot,
+`gemini-3.5-flash-lite` pour la génération SQL (`SORABEL_SQL_MODEL`).
+
+La CI a besoin du même secret : `GOOGLE_API_KEY` dans *Settings → Secrets and
+variables → Actions*. Sans lui, les quatre tests d'acceptance SQL échouent.
 
 Le sélecteur de profil de l'UI pose l'en-tête `X-Sorabel-Profile` sur l'appel
 au runtime ; le runtime le réémet vers `/mcp` via `options.fetch` du transport
@@ -90,9 +96,10 @@ eval/
   questions_rag.jsonl # questions documentaires : couvertes, hors corpus, par référence exacte
   questions_sql.jsonl # questions métier en langage naturel, dont cas limites
   run_eval.py         # mesure dense vs lexical vs hybride → rapport_gain.md
+  run_eval_sql.py     # joue les 24 questions SQL : génération, refus, périmètre
 ingest/               # parse.py (métadonnées déclarées, dédoublonnage), index.py (Chroma)
 retrieval/            # embed.py, search.py (hybride + porte de pertinence), answer.py
-sql/                  # accès SQL en langage naturel (à construire)
+sql/                  # schema.py (une source pour le prompt et le garde), generate.py, guard.py, db.py
 gateway/              # la gouvernance : matrice d'accès, journal, catalogue des 8 tools
 mcp_server/           # les deux canaux : server.py (stdio), http_server.py (/mcp)
 scripts/

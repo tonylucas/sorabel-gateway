@@ -13,8 +13,9 @@ En place et fourni : le corpus (`data/corpus/`, ~400 documents), `docs/schema.sq
 `scripts/seed.py` (base SQLite déterministe), `eval/questions_rag.jsonl` et
 `questions_sql.jsonl`, `scripts/mcp_client.py`, le `Makefile`, `docker-compose.yml`.
 
-Construit : `mcp_server/` (canal HTTP, `resolve_profile()`), `ui/` (app bot).
-Squelettes à remplir : `ingest/`, `retrieval/`, `sql/`. À créer : `gateway/`.
+Construit : `mcp_server/` (deux canaux), `gateway/` (matrice, journal, les 8
+tools), `ingest/`, `retrieval/`, `sql/`, `ui/` (app bot). Reste l'étape 5
+(externalisation de la matrice, rôles PostgreSQL) et l'étape 6 (déploiement).
 
 `ROADMAP.md` donne l'ordre des chantiers et l'état de chacun.
 
@@ -84,6 +85,7 @@ Tout passe par le `Makefile` :
 |---|---|
 | `make install` · `make seed` · `make up` | dépendances, base SQLite, Chroma |
 | `make test` | la suite d'acceptance — la spécification |
+| `make eval` · `make eval-sql` | mesures E6 (RAG) et contrôle du Text-to-SQL |
 | `make lint` · `make fmt` | ruff + mypy |
 | `make serve` · `make serve-http` | serveur MCP, canal stdio ou HTTP |
 | `make client` | client de test (`PROFILE=support\|commercial`, ou `--http`) |
