@@ -46,7 +46,12 @@ cp ui/.env.example ui/.env         # y coller GOOGLE_API_KEY
 make ui-install                    # npm install
 make serve-http                    # terminal 1 — la gateway
 make ui                            # terminal 2 — http://localhost:3000
+make ui-fmt                        # Biome : formatage + retrait des imports inutilisés
 ```
+
+Le formatage et le retrait des imports inutilisés se font **à l'enregistrement**
+via Biome (`ui/biome.json`, réglages dans `.vscode/`) ; ESLint reste chargé des
+règles propres à Next.
 
 **Clés Gemini — une par service.** L'app bot lit `ui/.env`, le serveur Python
 lira le `.env` du dépôt : deux déploiements Cloud Run distincts à l'étape 6,

@@ -1,5 +1,4 @@
-import { CopilotRuntime, createCopilotHonoHandler } from "@copilotkit/runtime/v2";
-import { BuiltInAgent } from "@copilotkit/runtime/v2";
+import { BuiltInAgent, CopilotRuntime, createCopilotHonoHandler } from "@copilotkit/runtime/v2";
 
 const MCP_URL = process.env.MCP_URL ?? "http://127.0.0.1:8000/mcp";
 const MODEL = process.env.GEMINI_MODEL ?? "google/gemini-3.6-flash";
@@ -61,9 +60,7 @@ const runtime = new CopilotRuntime({
           "sources utilisées, en donnant pour chacune le nom de fichier exact " +
           "(champ `fichier`), son titre et sa date. Ne cite que les fichiers " +
           "renvoyés par le tool.",
-        mcpServers: [
-          { type: "http", url: MCP_URL, options: { fetch: fetchAsProfile(profile) } },
-        ],
+        mcpServers: [{ type: "http", url: MCP_URL, options: { fetch: fetchAsProfile(profile) } }],
       }),
     };
   },
@@ -72,4 +69,5 @@ const runtime = new CopilotRuntime({
 const app = createCopilotHonoHandler({ runtime, basePath: "/api/copilotkit" });
 
 const handler = (request: Request) => app.fetch(request);
+
 export { handler as GET, handler as POST, handler as OPTIONS };

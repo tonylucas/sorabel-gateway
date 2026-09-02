@@ -1,4 +1,4 @@
-.PHONY: install up down seed ingest eval test fmt lint serve serve-http client journal ui ui-install
+.PHONY: install up down seed ingest eval test fmt lint serve serve-http client journal ui ui-fmt ui-install
 
 install:
 	uv sync
@@ -34,6 +34,9 @@ serve:
 
 serve-http:
 	uv run python -m mcp_server.http_server
+
+ui-fmt:
+	cd ui && npm run format
 
 ui-install:
 	cd ui && npm install

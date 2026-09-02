@@ -40,16 +40,36 @@ FAMILIES = {
     "cheville": ("Visserie", ["Fixor"]),
 }
 VARIANTS = {
-    "disjoncteur": ["monophasé 10 A courbe C", "monophasé 16 A courbe C", "monophasé 20 A courbe C",
-                    "monophasé 32 A courbe D", "triphasé 25 A courbe C", "triphasé 63 A courbe D",
-                    "tétrapolaire 40 A courbe C"],
+    "disjoncteur": [
+        "monophasé 10 A courbe C",
+        "monophasé 16 A courbe C",
+        "monophasé 20 A courbe C",
+        "monophasé 32 A courbe D",
+        "triphasé 25 A courbe C",
+        "triphasé 63 A courbe D",
+        "tétrapolaire 40 A courbe C",
+    ],
     "interrupteur différentiel": ["30 mA type A", "30 mA type AC", "300 mA type A"],
-    "câble": ["R2V 3G1,5 mm² (100 m)", "R2V 3G2,5 mm² (50 m)", "R2V 5G6 mm² (50 m)",
-              "H07V-U 1,5 mm² (100 m)", "H07V-U 2,5 mm² (100 m)"],
-    "tableau électrique": ["1 rangée 13 modules", "2 rangées 26 modules", "3 rangées 39 modules",
-                           "4 rangées 52 modules"],
+    "câble": [
+        "R2V 3G1,5 mm² (100 m)",
+        "R2V 3G2,5 mm² (50 m)",
+        "R2V 5G6 mm² (50 m)",
+        "H07V-U 1,5 mm² (100 m)",
+        "H07V-U 2,5 mm² (100 m)",
+    ],
+    "tableau électrique": [
+        "1 rangée 13 modules",
+        "2 rangées 26 modules",
+        "3 rangées 39 modules",
+        "4 rangées 52 modules",
+    ],
     "goulotte": ["25×40 mm (2 m)", "40×60 mm (2 m)", "60×80 mm (2 m)"],
-    "perceuse": ["à percussion 750 W", "sans fil 18 V", "à colonne 500 W", "sans fil 12 V compacte"],
+    "perceuse": [
+        "à percussion 750 W",
+        "sans fil 18 V",
+        "à colonne 500 W",
+        "sans fil 12 V compacte",
+    ],
     "visseuse": ["à chocs 18 V", "sans fil 12 V", "plaquiste 550 W"],
     "meuleuse": ["d'angle 125 mm 900 W", "d'angle 230 mm 2000 W"],
     "scie circulaire": ["185 mm 1200 W", "plongeante 160 mm"],
@@ -64,10 +84,40 @@ VARIANTS = {
 }
 
 SEGMENTS = ["artisan", "PME", "grand compte", "collectivité"]
-VILLES = ["Lille", "Roubaix", "Lyon", "Villeurbanne", "Nantes", "Rennes", "Amiens", "Arras",
-          "Valenciennes", "Dunkerque", "Angers", "Tours", "Orléans", "Reims", "Metz"]
-SOCIETES = ["Élec", "Bâti", "Instal", "Courant", "Volt", "Chantier", "Renov", "Tech",
-            "Azur", "Nord", "Delta", "Ohm", "Phase", "Prisme", "Sillage"]
+VILLES = [
+    "Lille",
+    "Roubaix",
+    "Lyon",
+    "Villeurbanne",
+    "Nantes",
+    "Rennes",
+    "Amiens",
+    "Arras",
+    "Valenciennes",
+    "Dunkerque",
+    "Angers",
+    "Tours",
+    "Orléans",
+    "Reims",
+    "Metz",
+]
+SOCIETES = [
+    "Élec",
+    "Bâti",
+    "Instal",
+    "Courant",
+    "Volt",
+    "Chantier",
+    "Renov",
+    "Tech",
+    "Azur",
+    "Nord",
+    "Delta",
+    "Ohm",
+    "Phase",
+    "Prisme",
+    "Sillage",
+]
 STATUTS = ["en_attente", "preparee", "expediee", "livree", "livree", "livree", "annulee"]
 
 SCHEMA = """
@@ -108,11 +158,15 @@ def gen_refs(n: int) -> list[str]:
 
 
 def build_products() -> list[dict]:
-    products: list[dict] = [{
-        "ref": "REF-8842", "famille": "disjoncteur",
-        "nom": "Disjoncteur tétrapolaire triphasé 40 A courbe C",
-        "categorie": "Protection électrique", "fabricant": "Voltane",
-    }]
+    products: list[dict] = [
+        {
+            "ref": "REF-8842",
+            "famille": "disjoncteur",
+            "nom": "Disjoncteur tétrapolaire triphasé 40 A courbe C",
+            "categorie": "Protection électrique",
+            "fabricant": "Voltane",
+        }
+    ]
     pool = [(fam, var) for fam, vars_ in VARIANTS.items() for var in vars_]
     pool = pool * 3
     rng.shuffle(pool)
@@ -120,17 +174,26 @@ def build_products() -> list[dict]:
     for i in range(119):
         fam, var = pool[i]
         cat, brands = FAMILIES[fam]
-        products.append({"ref": f"REF-{refs[i]}", "famille": fam,
-                         "nom": f"{fam.capitalize()} {var}",
-                         "categorie": cat, "fabricant": rng.choice(brands)})
+        products.append(
+            {
+                "ref": f"REF-{refs[i]}",
+                "famille": fam,
+                "nom": f"{fam.capitalize()} {var}",
+                "categorie": cat,
+                "fabricant": rng.choice(brands),
+            }
+        )
     for p in products:
         pv = round(rng.uniform(3, 480), 2)
         pa = round(pv * rng.uniform(0.45, 0.75), 2)
         p["prix_vente_ht"] = pv
         p["prix_achat_ht"] = pa
         p["marge_pct"] = round((pv - pa) / pv * 100, 1)
-        p["unite"] = ("conditionnement"
-                      if p["famille"] in ("câble", "vis autoperceuse", "cheville") else "pièce")
+        p["unite"] = (
+            "conditionnement"
+            if p["famille"] in ("câble", "vis autoperceuse", "cheville")
+            else "pièce"
+        )
     return products
 
 
@@ -146,27 +209,41 @@ def main() -> None:
     cur.executescript(SCHEMA)
 
     for p in products:
-        cur.execute("INSERT INTO produits VALUES (?,?,?,?,?,?,?,?,1)",
-                    (p["ref"], p["nom"], p["categorie"], p["fabricant"], p["unite"],
-                     p["prix_vente_ht"], p["prix_achat_ht"], p["marge_pct"]))
+        cur.execute(
+            "INSERT INTO produits VALUES (?,?,?,?,?,?,?,?,1)",
+            (
+                p["ref"],
+                p["nom"],
+                p["categorie"],
+                p["fabricant"],
+                p["unite"],
+                p["prix_vente_ht"],
+                p["prix_achat_ht"],
+                p["marge_pct"],
+            ),
+        )
 
     for p in products:
         for ent in ("LILLE", "LYON", "NANTES"):
             if rng.random() < 0.85:
                 cur.execute(
                     "INSERT INTO stocks (ref, entrepot, quantite, seuil_reappro) VALUES (?,?,?,?)",
-                    (p["ref"], ent, rng.randint(0, 480), rng.choice([10, 20, 50])))
+                    (p["ref"], ent, rng.randint(0, 480), rng.choice([10, 20, 50])),
+                )
 
     clients = []
     for i in range(60):
-        name = (f"{rng.choice(SOCIETES)}"
-                f"{rng.choice(['', ' Pro', ' Services', ' & Fils', ' Groupe'])} "
-                f"{rng.choice(['SARL', 'SAS', 'EURL'])}")
+        name = (
+            f"{rng.choice(SOCIETES)}"
+            f"{rng.choice(['', ' Pro', ' Services', ' & Fils', ' Groupe'])} "
+            f"{rng.choice(['SARL', 'SAS', 'EURL'])}"
+        )
         cid = f"CLI-{1000 + i}"
         clients.append(cid)
-        cur.execute("INSERT INTO clients VALUES (?,?,?,?,?)",
-                    (cid, name, rng.choice(SEGMENTS), rng.choice(VILLES),
-                     f"contact{i}@client{i}.example"))
+        cur.execute(
+            "INSERT INTO clients VALUES (?,?,?,?,?)",
+            (cid, name, rng.choice(SEGMENTS), rng.choice(VILLES), f"contact{i}@client{i}.example"),
+        )
 
     start = date(2025, 9, 1)
     end = date(2026, 8, 20)
@@ -186,17 +263,22 @@ def main() -> None:
             marge = round((pu - p["prix_achat_ht"]) * q, 2)
             lignes.append((p["ref"], q, pu, remise, marge))
         montant = round(sum(q * pu for _, q, pu, _, _ in lignes), 2)
-        cur.execute("INSERT INTO commandes VALUES (?,?,?,?,?)",
-                    (cmd_id, cid, d.isoformat(), rng.choice(STATUTS), montant))
+        cur.execute(
+            "INSERT INTO commandes VALUES (?,?,?,?,?)",
+            (cmd_id, cid, d.isoformat(), rng.choice(STATUTS), montant),
+        )
         for ref, q, pu, remise, marge in lignes:
             cur.execute(
                 "INSERT INTO ventes (commande_id, ref, quantite, prix_unitaire_ht, remise_pct, marge_ht)"
                 " VALUES (?,?,?,?,?,?)",
-                (cmd_id, ref, q, pu, remise, marge))
+                (cmd_id, ref, q, pu, remise, marge),
+            )
 
     con.commit()
-    counts = {t: cur.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-              for t in ("produits", "stocks", "clients", "commandes", "ventes")}
+    counts = {
+        t: cur.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+        for t in ("produits", "stocks", "clients", "commandes", "ventes")
+    }
     con.close()
     print(f"Base créée : {DB_PATH}")
     for table, count in counts.items():

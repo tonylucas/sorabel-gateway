@@ -88,6 +88,7 @@ Tout passe par le `Makefile` :
 | `make serve` · `make serve-http` | serveur MCP, canal stdio ou HTTP |
 | `make client` | client de test (`PROFILE=support\|commercial`, ou `--http`) |
 | `make ui-install` · `make ui` | app bot sur localhost:3000 |
+| `make ui-fmt` | Biome : formatage et imports inutilisés de `ui/` |
 
 ## Langue
 

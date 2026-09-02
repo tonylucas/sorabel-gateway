@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { CopilotChat, CopilotKitProvider } from "@copilotkit/react-core/v2";
+import { useState } from "react";
 import "@copilotkit/react-core/v2/styles.css";
 
 const PROFILES = ["support", "commercial", "dev"] as const;

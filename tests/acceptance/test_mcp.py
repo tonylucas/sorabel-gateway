@@ -14,9 +14,7 @@ async def test_matrice_d_acces_respectee():
                 if tool in autorises:
                     continue
                 result = await call(tool, {})
-                assert result["status"] == "refused", (
-                    f"{profile} ne doit pas accéder à {tool}"
-                )
+                assert result["status"] == "refused", f"{profile} ne doit pas accéder à {tool}"
 
 
 async def test_refus_message_clair_et_journalise(journal_path):
