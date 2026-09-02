@@ -9,7 +9,8 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 - Tools figés pour les besoins récurrents : `check_stock`, `order_status` (à construire)
 - Serveur MCP unique exposant tout le catalogue, sous matrice d'accès par profil (`support`, `commercial`) avec journalisation de chaque appel (à construire)
 - Données en place : base SQL générée par `scripts/seed.py`, corpus de ~400 documents, Chroma prête via docker compose (index encore vide)
-- Client MCP de test jouable avec les deux profils (`scripts/mcp_client.py`)
+- Client MCP de test jouable avec les deux profils, en stdio ou en HTTP (`scripts/mcp_client.py`)
+- App bot de démonstration (Next.js + CopilotKit, agent Gemini) branchée sur `/mcp` comme le serait Slack
 
 
 ## Stack
@@ -17,7 +18,8 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 - Python 3.11 (géré avec `uv`)
 - Chroma pour l'index vectoriel (`docker compose`, port 8002)
 - SQLite pour la base (`data/sorabel.db`, générée par le seed, à ouvrir en lecture seule)
-- SDK MCP (`mcp`) pour le serveur et le client stdio
+- SDK MCP (`mcp`) pour le serveur — deux canaux : stdio et Streamable HTTP sur `/mcp`
+- Next.js + CopilotKit (`ui/`) pour l'app bot, agent Gemini via l'AI SDK
 - `pypdf` / `beautifulsoup4` pour l'extraction du corpus, `rank-bm25` pour la piste lexicale
 - `sentence-transformers` disponible via l'extra `vector` :
 
@@ -34,8 +36,31 @@ make seed         # génère data/sorabel.db (déterministe, aligné sur le corp
 make up           # docker compose : Chroma sur localhost:8002
 make test         # suite d'acceptance (rouge tant que la gateway n'est pas construite)
 make serve        # serveur MCP stdio (profil via SORABEL_PROFILE)
+make serve-http   # serveur MCP Streamable HTTP sur http://127.0.0.1:8000/mcp
 make client       # client de test (PROFILE=support|commercial)
 ```
+
+### App bot (démo)
+
+L'app bot est un client MCP parmi d'autres : elle simule le bot Slack du
+support. Elle ne porte aucune logique métier — tout passe par `/mcp`.
+
+```bash
+cp ui/.env.example ui/.env.local   # y coller GOOGLE_API_KEY
+make ui-install                    # npm install
+make serve-http                    # terminal 1 — la gateway
+make ui                            # terminal 2 — http://localhost:3000
+```
+
+**Clé Gemini.** Une seule variable, `GOOGLE_API_KEY`, à créer sur
+[aistudio.google.com/apikey](https://aistudio.google.com/apikey). Elle vit
+côté serveur (route API Next.js) et n'atteint jamais le navigateur.
+L'abonnement Google AI Pro ne donne pas d'accès API : c'est le free tier
+d'AI Studio qui fournit le quota, ou la facturation Vertex AI.
+
+Le sélecteur de profil de l'UI pose l'en-tête `X-Sorabel-Profile` sur l'appel
+au runtime ; le runtime le réémet vers `/mcp` via `options.fetch` du transport
+MCP. Le navigateur ne voit jamais `/mcp`.
 
 Exemples côté client :
 
@@ -62,6 +87,7 @@ sql/                  # accès SQL en langage naturel (à concevoir et construir
 mcp_server/           # serveur MCP de la gateway (à concevoir et construire)
 scripts/
   seed.py             # génère et peuple data/sorabel.db
-  mcp_client.py       # client MCP de test (profils support / commercial)
+  mcp_client.py       # client MCP de test (stdio, ou --http)
 tests/acceptance/     # suite d'acceptance boîte noire, adossée aux exigences E1–E6
+ui/                   # app bot de démo — Next.js + CopilotKit, agent Gemini
 ```
