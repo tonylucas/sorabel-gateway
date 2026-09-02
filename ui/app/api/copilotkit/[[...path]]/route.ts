@@ -1,8 +1,17 @@
 import { CopilotRuntime, createCopilotEndpoint } from "@copilotkit/runtime/v2";
 import { BuiltInAgent } from "@copilotkit/runtime/v2";
 
+// En dev, la clé Gemini vit dans le `.env` du dépôt : une seule copie pour la
+// gateway Python et pour le bot. `loadEnvFile` n'écrase rien de déjà défini,
+// donc `ui/.env.local` et les variables Cloud Run gardent la priorité.
+try {
+  process.loadEnvFile("../.env");
+} catch {
+  // Absent en production : les variables viennent de la plateforme.
+}
+
 const MCP_URL = process.env.MCP_URL ?? "http://127.0.0.1:8000/mcp";
-const MODEL = process.env.GEMINI_MODEL ?? "google/gemini-2.5-flash";
+const MODEL = process.env.GEMINI_MODEL ?? "google/gemini-3.7-flash";
 const PROFILES = ["support", "commercial", "dev"];
 const PROFILE_HEADER = "x-sorabel-profile";
 
@@ -28,6 +37,17 @@ function fetchAsProfile(profile: string): typeof fetch {
     });
 }
 
+function apiKey(): string {
+  const key = process.env.GOOGLE_API_KEY?.trim();
+  if (!key) {
+    throw new Error(
+      "GOOGLE_API_KEY manquante : la renseigner dans le .env du dépôt " +
+        "(ou dans ui/.env.local). Clé à créer sur https://aistudio.google.com/apikey",
+    );
+  }
+  return key;
+}
+
 const runtime = new CopilotRuntime({
   // Fabrique par requête : un agent par profil, la connexion MCP en hérite.
   agents: ({ request }) => {
@@ -35,7 +55,7 @@ const runtime = new CopilotRuntime({
     return {
       default: new BuiltInAgent({
         model: MODEL,
-        apiKey: process.env.GOOGLE_API_KEY || undefined,
+        apiKey: apiKey(),
         maxSteps: 8,
         prompt:
           "Tu es l'assistant interne Sorabel. Tu réponds en français, brièvement. " +

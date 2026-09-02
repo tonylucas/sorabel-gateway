@@ -55,8 +55,13 @@ make ui                            # terminal 2 — http://localhost:3000
 **Clé Gemini.** Une seule variable, `GOOGLE_API_KEY`, à créer sur
 [aistudio.google.com/apikey](https://aistudio.google.com/apikey). Elle vit
 côté serveur (route API Next.js) et n'atteint jamais le navigateur.
-L'abonnement Google AI Pro ne donne pas d'accès API : c'est le free tier
-d'AI Studio qui fournit le quota, ou la facturation Vertex AI.
+L'abonnement Google AI Pro ne donne pas d'accès API : le quota vient du free
+tier d'AI Studio (projet **sans** facturation), du prépaiement AI Studio, ou de
+Vertex AI. Un projet en prépaiement à zéro renvoie `429 RESOURCE_EXHAUSTED`
+sans repli sur le free tier.
+
+Modèle par défaut : `google/gemini-3.7-flash`, épinglé plutôt qu'un alias
+`-latest` pour que les mesures de E6 restent reproductibles.
 
 Le sélecteur de profil de l'UI pose l'en-tête `X-Sorabel-Profile` sur l'appel
 au runtime ; le runtime le réémet vers `/mcp` via `options.fetch` du transport
