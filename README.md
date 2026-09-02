@@ -46,15 +46,17 @@ L'app bot est un client MCP parmi d'autres : elle simule le bot Slack du
 support. Elle ne porte aucune logique métier — tout passe par `/mcp`.
 
 ```bash
-cp ui/.env.example ui/.env.local   # y coller GOOGLE_API_KEY
+cp ui/.env.example ui/.env         # y coller GOOGLE_API_KEY
 make ui-install                    # npm install
 make serve-http                    # terminal 1 — la gateway
 make ui                            # terminal 2 — http://localhost:3000
 ```
 
-**Clé Gemini.** Une seule variable, `GOOGLE_API_KEY`, à créer sur
-[aistudio.google.com/apikey](https://aistudio.google.com/apikey). Elle vit
-côté serveur (route API Next.js) et n'atteint jamais le navigateur.
+**Clés Gemini — une par service.** L'app bot lit `ui/.env`, le serveur Python
+lira le `.env` du dépôt : deux déploiements Cloud Run distincts à l'étape 6,
+donc deux configurations. Les deux clés vivent côté serveur et n'atteignent
+jamais le navigateur (Next n'expose au bundle que les variables `NEXT_PUBLIC_*`).
+À créer sur [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
 L'abonnement Google AI Pro ne donne pas d'accès API : le quota vient du free
 tier d'AI Studio (projet **sans** facturation), du prépaiement AI Studio, ou de
 Vertex AI. Un projet en prépaiement à zéro renvoie `429 RESOURCE_EXHAUSTED`
