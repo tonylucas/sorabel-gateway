@@ -28,9 +28,12 @@ réponse s'affiche.
 - **Profil par requête** : `CopilotRuntime({ agents: ({ request }) => … })` lit
   l'en-tête posé par `<CopilotKit headers>` et construit l'agent en conséquence.
   Un seul endpoint runtime pour les trois profils.
-- **API Gemini** : reste à confirmer avec une vraie clé (`GOOGLE_API_KEY`
-  d'AI Studio). Google AI Pro est un abonnement grand public, il ne donne pas de
-  quota API — voir le README.
+- **API Gemini : oui, sur un projet sans facturation.** Google AI Pro ne donne
+  pas de quota API, et un projet GCP en prépaiement épuisé renvoie `429` sans
+  retomber sur le free tier. Un projet neuf, non lié à un compte de facturation,
+  est sur le free tier et répond. Modèle : `gemini-3.6-flash` — les `2.5` ne sont
+  plus servies aux nouveaux projets (404), et `3.7-flash` raisonne par défaut
+  (~25 s pour un bonjour, à retester si on veut y passer).
 
 ---
 

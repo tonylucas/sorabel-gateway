@@ -62,7 +62,7 @@ tier d'AI Studio (projet **sans** facturation), du prépaiement AI Studio, ou de
 Vertex AI. Un projet en prépaiement à zéro renvoie `429 RESOURCE_EXHAUSTED`
 sans repli sur le free tier.
 
-Modèle par défaut : `google/gemini-3.7-flash`, épinglé plutôt qu'un alias
+Modèle par défaut : `google/gemini-3.6-flash`, épinglé plutôt qu'un alias
 `-latest` pour que les mesures de E6 restent reproductibles.
 
 Le sélecteur de profil de l'UI pose l'en-tête `X-Sorabel-Profile` sur l'appel

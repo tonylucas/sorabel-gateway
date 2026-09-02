@@ -2,7 +2,7 @@ import { CopilotRuntime, createCopilotEndpoint } from "@copilotkit/runtime/v2";
 import { BuiltInAgent } from "@copilotkit/runtime/v2";
 
 const MCP_URL = process.env.MCP_URL ?? "http://127.0.0.1:8000/mcp";
-const MODEL = process.env.GEMINI_MODEL ?? "google/gemini-3.7-flash";
+const MODEL = process.env.GEMINI_MODEL ?? "google/gemini-3.6-flash";
 const PROFILES = ["support", "commercial", "dev"];
 const PROFILE_HEADER = "x-sorabel-profile";
 
