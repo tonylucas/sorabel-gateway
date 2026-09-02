@@ -49,6 +49,7 @@ make ui-install                    # npm install
 make serve-http                    # terminal 1 — la gateway
 make ui                            # terminal 2 — http://localhost:3000
 make ui-fmt                        # Biome : formatage + retrait des imports inutilisés
+make ui-clean                      # vide ui/.next — si le dev server reste sur « Compiling / »
 ```
 
 Le formatage et le retrait des imports inutilisés se font **à l'enregistrement**

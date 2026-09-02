@@ -1,4 +1,4 @@
-.PHONY: install up down seed ingest eval eval-sql test fmt lint serve serve-http client journal ui ui-fmt ui-install
+.PHONY: install up down seed ingest eval eval-sql test fmt lint serve serve-http client journal ui ui-fmt ui-install ui-clean
 
 install:
 	uv sync
@@ -40,6 +40,12 @@ serve:
 
 serve-http:
 	uv run python -m mcp_server.http_server
+
+# Turbopack garde son cache dans `ui/.next`, indexé sur l'arbre du moment. Un
+# `git checkout` qui change `ui/package.json` sous un cache existant le laisse
+# incohérent, et le serveur de dev reste bloqué sur « Compiling / ». Vider.
+ui-clean:
+	rm -rf ui/.next
 
 ui-fmt:
 	cd ui && npm run format
