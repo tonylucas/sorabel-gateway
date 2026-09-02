@@ -4,16 +4,22 @@ Chaque fonction porte sa description — c'est elle que lira le LLM d'un host
 qu'on ne contrôle pas, et donc le seul levier sur le choix du tool. Elles disent
 toutes quand s'en servir **et quand ne pas** s'en servir.
 
-Étape 2 de la roadmap : signatures, enveloppe et journal sont définitifs ; les
-charges utiles sont vides. Les moteurs arrivent aux étapes 3 (RAG) et 4 (SQL).
+Les moteurs sont importés **dans** les fonctions : la suite d'acceptance relance
+un process par session et coupe à 30 s, un import lourd au démarrage la ferait
+tomber avant le premier appel.
 """
 
 from __future__ import annotations
 
-from gateway.access import collections, current_profile, hors_corpus, ok, refused, tool_access
-
-_STUB = "Moteur non encore branché : l'enveloppe est conforme, la charge utile est vide."
-
+from gateway.access import (
+    clarification,
+    collections,
+    current_profile,
+    hors_corpus,
+    ok,
+    refused,
+    tool_access,
+)
 
 def _perimetre() -> frozenset[str]:
     """Types de documents visibles par le profil courant — filtre appliqué au retrieval."""
@@ -130,7 +136,23 @@ def ask_database(question: str) -> dict:
     pour l'état d'une commande dont on a l'identifiant (`order_status`) : ces
     deux-là sont plus rapides et plus sûrs.
     """
-    return {**ok(sql="", rows=[], columns=[], question=question), "message": _STUB}
+    from sql import db
+    from sql.generate import genere
+    from sql.guard import Refus, valide
+
+    profile = current_profile()
+    try:
+        sql = valide(genere(question, profile), profile)
+    except Refus as refus:
+        # Sur refus, la requête ne repart pas au client : lui rendre
+        # `SELECT marge_ht …` lui apprendrait le nom de la colonne protégée.
+        # Le journal, lui, la conserve.
+        if refus.status == "clarification":
+            return clarification(refus.code, refus.message)
+        return refused(refus.code, refus.message)
+
+    colonnes, lignes = db.run(sql)
+    return ok(sql=sql, rows=lignes, columns=colonnes, question=question)
 
 
 @tool_access("get_schema")
@@ -142,7 +164,11 @@ def get_schema() -> dict:
 
     Ne pas l'utiliser pour obtenir des données : il ne renvoie que la structure.
     """
-    return {**ok(ddl="", tables=[]), "message": _STUB}
+    from sql.schema import ddl, sqlglot_schema
+
+    profile = current_profile()
+    schema = sqlglot_schema(profile)
+    return ok(ddl=ddl(profile), tables={table: list(cols) for table, cols in schema.items()})
 
 
 @tool_access("check_stock")
@@ -155,7 +181,22 @@ def check_stock(reference: str) -> dict:
     Ne pas l'utiliser si la référence est inconnue — chercher d'abord le produit
     avec `ask_database` ou `search_docs`.
     """
-    return {**ok(reference=reference, entrepots=[], total=None), "message": _STUB}
+    from sql import db
+
+    colonnes, lignes = db.run(
+        "SELECT entrepot, quantite, seuil_reappro FROM stocks WHERE ref = ? ORDER BY entrepot",
+        (reference.strip().upper(),),
+    )
+    if not lignes:
+        return refused("not_found", f"Aucun stock connu pour la référence « {reference} ».")
+
+    entrepots = [dict(zip(colonnes, ligne, strict=True)) for ligne in lignes]
+    return ok(
+        reference=reference.strip().upper(),
+        entrepots=entrepots,
+        total=sum(e["quantite"] for e in entrepots),
+        sous_seuil=[e["entrepot"] for e in entrepots if e["quantite"] < e["seuil_reappro"]],
+    )
 
 
 @tool_access("order_status")
@@ -167,7 +208,17 @@ def order_status(order_id: str) -> dict:
     Ne pas l'utiliser pour retrouver les commandes d'un client ou d'une période :
     c'est le travail d'`ask_database`.
     """
-    return {**ok(order_id=order_id, statut=None), "message": _STUB}
+    from sql import db
+
+    colonnes, lignes = db.run(
+        "SELECT c.id, c.date_commande, c.statut, c.montant_ht, cl.raison_sociale "
+        "FROM commandes c JOIN clients cl ON cl.id = c.client_id WHERE c.id = ?",
+        (order_id.strip().upper(),),
+    )
+    if not lignes:
+        return refused("not_found", f"Aucune commande ne porte l'identifiant « {order_id} ».")
+
+    return ok(**dict(zip(colonnes, lignes[0], strict=True)))
 
 
 #: Le catalogue, dans l'ordre du cadrage. Les canaux enregistrent cette liste.
