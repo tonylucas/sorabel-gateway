@@ -1,5 +1,4 @@
-import { CopilotRuntime, createCopilotEndpoint } from "@copilotkit/runtime/v2";
-import { BuiltInAgent } from "@copilotkit/runtime/v2";
+import { BuiltInAgent, CopilotRuntime, createCopilotRuntimeHandler } from "@copilotkit/runtime/v2";
 
 const MCP_URL = process.env.MCP_URL ?? "http://127.0.0.1:8000/mcp";
 const MODEL = process.env.GEMINI_MODEL ?? "google/gemini-3.6-flash";
@@ -56,16 +55,21 @@ const runtime = new CopilotRuntime({
           "Tu es l'assistant interne Sorabel. Tu réponds en français, brièvement. " +
           "Tu ne réponds qu'à partir des tools de la gateway : n'invente jamais " +
           "une donnée produit, un stock ou un chiffre. Si un tool refuse, explique " +
-          "le refus à l'utilisateur au lieu de contourner.",
-        mcpServers: [
-          { type: "http", url: MCP_URL, options: { fetch: fetchAsProfile(profile) } },
-        ],
+          "le refus à l'utilisateur au lieu de contourner. " +
+          "Quand une réponse vient de la documentation, termine par la liste des " +
+          "sources utilisées, en donnant pour chacune le nom de fichier exact " +
+          "(champ `fichier`), son titre et sa date. Ne cite que les fichiers " +
+          "renvoyés par le tool.",
+        mcpServers: [{ type: "http", url: MCP_URL, options: { fetch: fetchAsProfile(profile) } }],
       }),
     };
   },
 });
 
-const app = createCopilotEndpoint({ runtime, basePath: "/api/copilotkit" });
+// `createCopilotRuntimeHandler` est la primitive canonique : un
+// `(Request) => Promise<Response>`, exactement ce qu'attend une route App
+// Router. L'adaptateur Hono qu'il remplace emballait un handler fetch dans une
+// app Hono pour la déballer aussitôt.
+const handler = createCopilotRuntimeHandler({ runtime, basePath: "/api/copilotkit" });
 
-const handler = (request: Request) => app.fetch(request);
 export { handler as GET, handler as POST, handler as OPTIONS };

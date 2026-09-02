@@ -32,9 +32,11 @@ HTTP_URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp")
 async def _transport(profile: str, http: bool):
     """stdio (un process par profil) ou Streamable HTTP (profil dans le header)."""
     if http:
-        async with streamablehttp_client(
-            HTTP_URL, headers={"X-Sorabel-Profile": profile}
-        ) as (read, write, _):
+        async with streamablehttp_client(HTTP_URL, headers={"X-Sorabel-Profile": profile}) as (
+            read,
+            write,
+            _,
+        ):
             yield read, write
         return
     params = StdioServerParameters(
@@ -73,8 +75,11 @@ def main() -> None:
     parser.add_argument("--profile", default="support", choices=["support", "commercial", "dev"])
     parser.add_argument("--tool", default=None, help="Nom du tool à appeler")
     parser.add_argument("--args", default="{}", help="Arguments du tool (JSON)")
-    parser.add_argument("--http", action="store_true",
-                        help=f"Passer par le canal Streamable HTTP ({HTTP_URL}) au lieu de stdio")
+    parser.add_argument(
+        "--http",
+        action="store_true",
+        help=f"Passer par le canal Streamable HTTP ({HTTP_URL}) au lieu de stdio",
+    )
     ns = parser.parse_args()
     asyncio.run(run(ns.profile, ns.tool, json.loads(ns.args), ns.http))
 

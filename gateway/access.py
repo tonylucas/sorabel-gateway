@@ -115,6 +115,10 @@ REFUS_TOOL = (
     "Ce profil n'a pas accès à cet outil. Adressez-vous à un profil "
     "habilité si vous en avez besoin."
 )
+REFUS_INTERNE = (
+    "La gateway n'a pas pu traiter cet appel. L'incident est journalisé ; "
+    "réessayez ou signalez-le à l'équipe."
+)
 
 
 def tool_access(name: str) -> Callable[[Callable[..., dict]], Callable[..., str]]:
@@ -133,10 +137,18 @@ def tool_access(name: str) -> Callable[[Callable[..., dict]], Callable[..., str]
             profile = current_profile()
             started = time.perf_counter()
 
+            erreur = None
             if not can(profile, name):
                 envelope = refused("unauthorized_tool", REFUS_TOOL)
             else:
-                envelope = fn(**kwargs)
+                try:
+                    envelope = fn(**kwargs)
+                except Exception as exc:  # noqa: BLE001 — dernier filet avant le canal
+                    # Sans ce filet, l'exception ressortirait en erreur de
+                    # protocole MCP : sans enveloppe, et sans entrée au journal.
+                    # Le détail technique reste au journal, pas chez le client.
+                    erreur = f"{type(exc).__name__}: {exc}"
+                    envelope = refused("erreur_interne", REFUS_INTERNE)
 
             journalise(
                 {
@@ -148,6 +160,7 @@ def tool_access(name: str) -> Callable[[Callable[..., dict]], Callable[..., str]
                     "code": envelope.get("payload", {}).get("code"),
                     "sql": envelope.get("payload", {}).get("sql"),
                     "latence_ms": round((time.perf_counter() - started) * 1000, 1),
+                    "erreur": erreur,
                 }
             )
             return json.dumps(envelope, ensure_ascii=False)

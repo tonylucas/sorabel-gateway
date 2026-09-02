@@ -1,9 +1,8 @@
 "use client";
 
+import { CopilotChat, CopilotKit } from "@copilotkit/react-core/v2";
 import { useState } from "react";
-import { CopilotKit } from "@copilotkit/react-core";
-import { CopilotChat } from "@copilotkit/react-ui";
-import "@copilotkit/react-ui/styles.css";
+import "@copilotkit/react-core/v2/styles.css";
 
 const PROFILES = ["support", "commercial", "dev"] as const;
 
@@ -34,13 +33,14 @@ export default function Page() {
         runtimeUrl="/api/copilotkit"
         headers={{ "X-Sorabel-Profile": profile }}
       >
-        <CopilotChat
-          className="flex-1 overflow-hidden"
-          labels={{
-            initial:
-              "Bonjour. Posez une question, ou tapez « appelle ping » pour vérifier la gateway.",
-          }}
-        />
+        <div className="min-h-0 flex-1">
+          <CopilotChat
+            labels={{
+              welcomeMessageText:
+                "Posez une question sur la documentation Sorabel, ou tapez « appelle ping » pour vérifier la gateway.",
+            }}
+          />
+        </div>
       </CopilotKit>
     </main>
   );

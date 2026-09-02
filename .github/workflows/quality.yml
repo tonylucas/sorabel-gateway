@@ -17,6 +17,9 @@ jobs:
         run: uv sync
       - name: Seed
         run: uv run python scripts/seed.py
+      - name: Ingest
+        run: uv run python -m ingest.index
+
       - name: Lint
         run: uv run ruff check .
       - name: Acceptance

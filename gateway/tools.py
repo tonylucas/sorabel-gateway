@@ -10,9 +10,14 @@ charges utiles sont vides. Les moteurs arrivent aux étapes 3 (RAG) et 4 (SQL).
 
 from __future__ import annotations
 
-from gateway.access import ok, tool_access
+from gateway.access import collections, current_profile, hors_corpus, ok, refused, tool_access
 
 _STUB = "Moteur non encore branché : l'enveloppe est conforme, la charge utile est vide."
+
+
+def _perimetre() -> frozenset[str]:
+    """Types de documents visibles par le profil courant — filtre appliqué au retrieval."""
+    return collections(current_profile())
 
 
 # ── Documentaire ─────────────────────────────────────────────────────────────
@@ -23,18 +28,31 @@ def answer_question(question: str) -> dict:
     """Répond à une question sur la documentation Sorabel, sources à l'appui.
 
     À utiliser quand l'utilisateur attend une réponse rédigée : procédure SAV,
-    garantie, caractéristiques d'un produit. Chaque réponse cite ses sources
-    (titre, référence, date). Hors du corpus, l'outil le dit au lieu d'inventer.
+    garantie, caractéristiques d'un produit. Chaque réponse cite ses sources —
+    titre, référence, date, et le **nom exact du fichier** dont elle vient
+    (`payload.sources[].fichier`), à citer à l'utilisateur. Hors du corpus,
+    l'outil le dit au lieu d'inventer.
 
     Ne pas l'utiliser pour obtenir une liste de documents à parcourir soi-même
     (voir `search_docs`), ni pour un stock ou une commande (voir `check_stock`,
     `order_status`, `ask_database`).
     """
-    return {**ok(answer="", sources=[]), "message": _STUB}
+    from retrieval.answer import REFUS_HORS_CORPUS, redige
+    from retrieval.search import pertinent, search
+
+    hits = search(question, k=5, doc_types=_perimetre())
+    repond, cosinus, bm25 = pertinent(question, hits)
+    if not repond:
+        # Sous le seuil, on ne rédige pas : E1 veut un aveu d'ignorance, pas une
+        # réponse plausible bâtie sur des passages hors sujet.
+        return hors_corpus(REFUS_HORS_CORPUS, cosinus=round(cosinus, 3), bm25=round(bm25, 2))
+
+    texte, sources = redige(hits)
+    return ok(answer=texte, sources=sources, cosinus=round(cosinus, 3))
 
 
 @tool_access("search_docs")
-def search_docs(query: str, k: int = 5) -> dict:
+def search_docs(query: str, k: int = 5, mode: str = "hybride") -> dict:
     """Cherche des passages dans le corpus documentaire et renvoie les meilleurs.
 
     À utiliser quand on veut des sources à examiner plutôt qu'une réponse
@@ -42,10 +60,19 @@ def search_docs(query: str, k: int = 5) -> dict:
     aussi bien une question en langage naturel qu'une référence exacte
     (« REF-8842 »).
 
+    `mode` vaut `hybride` (défaut, dense + lexical fusionnés), `dense` ou
+    `lexical` — les deux derniers servent à mesurer, pas à répondre.
+
     Ne pas l'utiliser quand l'utilisateur attend une réponse en français :
     prendre `answer_question`.
     """
-    return {**ok(hits=[], query=query, k=k), "message": _STUB}
+    from retrieval.search import DEFAULT_MODE, MODES, search
+
+    if mode not in MODES:
+        return refused("bad_argument", f"Mode de recherche inconnu : {mode!r}.")
+
+    hits = search(query, k=k, mode=mode, doc_types=_perimetre())
+    return ok(hits=[hit.as_dict() for hit in hits], query=query, k=k, mode=mode or DEFAULT_MODE)
 
 
 @tool_access("get_document")
@@ -57,7 +84,19 @@ def get_document(doc_id: str) -> dict:
 
     Ne pas l'utiliser pour chercher : le `doc_id` doit être connu.
     """
-    return {**ok(text="", metadata={}, doc_id=doc_id), "message": _STUB}
+    from retrieval.search import get_document as lire
+
+    trouve = lire(doc_id)
+    if trouve is None:
+        return refused("not_found", f"Aucun document ne porte l'identifiant « {doc_id} ».")
+
+    text, metadata = trouve
+    if metadata.get("doc_type") not in _perimetre():
+        # Même message que l'absence : dire « existe mais interdit » renseigne
+        # sur ce qu'on protège.
+        return refused("not_found", f"Aucun document ne porte l'identifiant « {doc_id} ».")
+
+    return ok(text=text, metadata=metadata, doc_id=doc_id)
 
 
 @tool_access("list_sources")
@@ -70,7 +109,9 @@ def list_sources() -> dict:
     Ne pas l'utiliser pour répondre à une question : elle ne renvoie aucun
     contenu, seulement le périmètre.
     """
-    return {**ok(sources=[]), "message": _STUB}
+    from retrieval.search import list_doc_types
+
+    return ok(sources=list_doc_types(_perimetre()))
 
 
 # ── Données ──────────────────────────────────────────────────────────────────

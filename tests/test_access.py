@@ -56,7 +56,8 @@ def test_une_entree_par_appel_ni_plus_ni_moins(journal):
 
     journalisees = entries(journal)
     assert [e["tool"] for e in journalisees] == ["list_sources", "get_schema", "answer_question"]
-    assert {e["status"] for e in journalisees} == {"ok", "refused"}
+    assert journalisees[0]["status"] == "ok"
+    assert journalisees[1]["status"] == "refused"
 
 
 @pytest.mark.parametrize(
@@ -76,3 +77,22 @@ def test_profil_inconnu_retombe_sur_support():
 
 def test_le_catalogue_est_complet():
     assert {fn.__name__ for fn in tools.CATALOGUE} == set(access.ALL_TOOLS)
+
+
+def test_une_exception_devient_une_enveloppe(journal):
+    # Sans le filet, elle ressortirait en erreur de protocole MCP : le client
+    # ne recevrait pas d'enveloppe, et l'appel manquerait au journal.
+    @access.tool_access("check_stock")
+    def explose(**_):
+        raise ValueError("boum")
+
+    access.set_profile("support")
+    envelope = json.loads(explose(reference="REF-8842"))
+
+    assert envelope["status"] == "refused"
+    assert envelope["payload"]["code"] == "erreur_interne"
+    assert "boum" not in envelope["message"]  # le détail reste au journal
+
+    (entry,) = entries(journal)
+    assert entry["status"] == "refused"
+    assert "ValueError: boum" == entry["erreur"]
