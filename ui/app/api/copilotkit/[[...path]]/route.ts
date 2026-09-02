@@ -1,4 +1,4 @@
-import { CopilotRuntime, createCopilotEndpoint } from "@copilotkit/runtime/v2";
+import { CopilotRuntime, createCopilotHonoHandler } from "@copilotkit/runtime/v2";
 import { BuiltInAgent } from "@copilotkit/runtime/v2";
 
 const MCP_URL = process.env.MCP_URL ?? "http://127.0.0.1:8000/mcp";
@@ -69,7 +69,7 @@ const runtime = new CopilotRuntime({
   },
 });
 
-const app = createCopilotEndpoint({ runtime, basePath: "/api/copilotkit" });
+const app = createCopilotHonoHandler({ runtime, basePath: "/api/copilotkit" });
 
 const handler = (request: Request) => app.fetch(request);
 export { handler as GET, handler as POST, handler as OPTIONS };
