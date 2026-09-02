@@ -25,7 +25,9 @@ htmlcov/
 chroma-data/
 .chroma/
 logs/*.jsonl
-data/sorabel.db
+# `-wal` et `-shm` sont les fichiers annexes du mode WAL de SQLite :
+# dérivés, transitoires, reconstruits seuls.
+data/sorabel.db*
 
 # IDE / OS
 .idea/
