@@ -82,9 +82,15 @@ def main() -> None:
     n_dans_corpus = len(par_type["reference_exacte"]) + len(par_type["couverte"])
     repond_corrects = n_dans_corpus - len(manques)
 
-    def ligne(mode: str, t: str) -> str:
-        s = scores[mode][t]
-        return f"{s['recall']:.0%} · {s['mrr']:.2f}"
+    def tableau(t: str) -> str:
+        """Un tableau par sous-ensemble : une colonne par métrique, jamais deux dans une."""
+        lignes = []
+        for mode in MODES:
+            s = scores[mode][t]
+            nom = f"**{mode}**" if mode == "hybride" else mode
+            gras = "**" if mode == "hybride" else ""
+            lignes.append(f"| {nom} | {gras}{s['recall'] * 100:.0f} %{gras} | {gras}{s['mrr']:.2f}{gras} |")
+        return "\n".join(lignes)
 
     gain_ref = (
         scores["hybride"]["reference_exacte"]["recall"]
@@ -106,17 +112,38 @@ Mesuré le {date.today().isoformat()} sur les {len(questions)} questions de
 Le dense est la **baseline** : c'est la recherche que E6 demande de comparer.
 L'hybride fusionne dense et lexical (BM25) par RRF, k={60}.
 
-## Recall@{K} · MRR
+## Deux métriques
 
-| Mode | `reference_exacte` (8) | `couverte` (14) |
+- **Recall@{K}** — part des questions dont le document attendu figure dans les
+  {K} premiers résultats. *Trouve-t-on la bonne chose ?*
+- **MRR** (rang réciproque moyen) — moyenne de `1 / rang` du bon document.
+  1,00 = toujours en tête ; 0,50 = toujours en deuxième ; 0 = jamais trouvé.
+  *La trouve-t-on assez haut pour qu'elle serve ?*
+
+Les deux sont nécessaires : un moteur peut tout trouver (Recall élevé) en
+plaçant systématiquement la bonne réponse en cinquième position (MRR bas).
+
+## Recherche par référence exacte — {len(par_type["reference_exacte"])} questions
+
+Requêtes du type « REF-8842 » ou « fiche technique REF-8842 ».
+
+| Mode | Recall@{K} | MRR |
 |---|---|---|
-| dense | {ligne("dense", "reference_exacte")} | {ligne("dense", "couverte")} |
-| lexical | {ligne("lexical", "reference_exacte")} | {ligne("lexical", "couverte")} |
-| **hybride** | **{ligne("hybride", "reference_exacte")}** | **{ligne("hybride", "couverte")}** |
+{tableau("reference_exacte")}
 
-**Gain de l'hybride sur le dense : {gain_ref * 100:+.0f} points de Recall@{K} en
-recherche par référence exacte, {gain_couv * 100:+.0f} points en pertinence
-sémantique.**
+## Pertinence sémantique — {len(par_type["couverte"])} questions
+
+Questions en langage naturel couvertes par le corpus.
+
+| Mode | Recall@{K} | MRR |
+|---|---|---|
+{tableau("couverte")}
+
+## Le gain
+
+L'hybride gagne **{gain_ref * 100:+.0f} points de Recall@{K}** en recherche par
+référence exacte et **{gain_couv * 100:+.0f} points** en pertinence sémantique,
+comparé à la baseline dense.
 
 C'est le résultat attendu, et la raison d'être de l'hybride : le dense encode du
 sens, or `REF-8842` n'en a pas — c'est une chaîne. Le lexical la trouve
@@ -124,22 +151,27 @@ exactement ; la fusion garde les deux comportements sans arbitrer à l'avance.
 
 ## Refus hors corpus (E1)
 
-On répond si l'une des trois preuves tient : une référence produit de la question
-figure dans les résultats, ou le cosinus du meilleur ≥ {SEUIL_COSINUS}, ou son
-score BM25 ≥ {SEUIL_LEXICAL}. Sinon, refus typé `hors_corpus`, sans génération.
+On répond si l'une de ces trois preuves tient :
+
+1. une référence produit de la question figure dans les résultats ;
+2. le cosinus du meilleur résultat atteint {SEUIL_COSINUS} ;
+3. son score BM25 atteint {SEUIL_LEXICAL}.
+
+Sinon, refus typé `hors_corpus`, sans génération.
 
 | | n | correct |
 |---|---|---|
 | refus attendu (`hors_corpus`) | {len(par_type["hors_corpus"])} | {refus_corrects} |
 | réponse attendue | {n_dans_corpus} | {repond_corrects} |
 
-**Aucun signal ne sépare seul le corpus du hors-corpus** : les cosinus se
-chevauchent ({min(cos_dans):.2f}–{max(cos_dans):.2f} dans le corpus,
-{min(cos_hors):.2f}–{max(cos_hors):.2f} hors corpus), les scores BM25 aussi. Les
-seuils sont donc calibrés ensemble, avec pour contrainte de ne jamais répondre
-hors corpus — le refus est ce que E1 exige, une réponse manquée coûte moins
-qu'une réponse inventée. Le plus haut BM25 hors corpus est {max(bm_hors):.1f},
-d'où le seuil à {SEUIL_LEXICAL}.
+**Aucun signal ne sépare seul le corpus du hors-corpus.** Les cosinus se
+chevauchent — {min(cos_dans):.2f}–{max(cos_dans):.2f} dans le corpus contre
+{min(cos_hors):.2f}–{max(cos_hors):.2f} hors corpus — et les scores BM25 aussi.
+
+Les deux seuils sont donc calibrés ensemble, sous une contrainte unique : **ne
+jamais répondre hors corpus**. Le refus est ce que E1 exige, et une réponse
+manquée coûte moins qu'une réponse inventée. Le plus haut BM25 hors corpus vaut
+{max(bm_hors):.1f}, d'où le seuil posé à {SEUIL_LEXICAL}.
 
 {"Questions du corpus refusées à tort : " + ", ".join(manques) + "." if manques else "Aucune question du corpus refusée à tort."}
 """,
