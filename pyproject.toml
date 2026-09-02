@@ -40,6 +40,12 @@ asyncio_mode = "auto"
 line-length = 100
 target-version = "py311"
 
+# La suite d'acceptance et le seed sont fournis et font spécification : les
+# reformater brouillerait le diff de ce qui fait foi. Ruff les analyse encore
+# (`ruff check`), il ne les réécrit plus.
+[tool.ruff.format]
+exclude = ["tests/acceptance/*", "tests/conftest.py", "scripts/seed.py"]
+
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true

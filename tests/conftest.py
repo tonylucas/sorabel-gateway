@@ -26,24 +26,13 @@ CALL_TIMEOUT = float(os.environ.get("GATEWAY_TEST_TIMEOUT", "30"))
 
 #: Catalogue et matrice d'accès imposés par docs/cadrage_dsi.md.
 ALL_TOOLS = (
-    "answer_question",
-    "search_docs",
-    "get_document",
-    "list_sources",
-    "ask_database",
-    "get_schema",
-    "check_stock",
-    "order_status",
+    "answer_question", "search_docs", "get_document", "list_sources",
+    "ask_database", "get_schema", "check_stock", "order_status",
 )
 TOOLS_BY_PROFILE = {
     "support": {
-        "answer_question",
-        "search_docs",
-        "get_document",
-        "list_sources",
-        "ask_database",
-        "check_stock",
-        "order_status",
+        "answer_question", "search_docs", "get_document", "list_sources",
+        "ask_database", "check_stock", "order_status",
     },
     "commercial": set(ALL_TOOLS),
 }
@@ -69,10 +58,8 @@ async def gateway_session(profile: str, journal_path: Path | None = None):
     ``{status, payload, message}`` du contrat d'intégration.
     """
     if importlib.util.find_spec(SERVER_MODULE) is None:
-        pytest.fail(
-            f"module `{SERVER_MODULE}` introuvable — le serveur de la gateway "
-            "n'est pas encore construit"
-        )
+        pytest.fail(f"module `{SERVER_MODULE}` introuvable — le serveur de la gateway "
+                    "n'est pas encore construit")
 
     env = {**os.environ, "SORABEL_PROFILE": profile}
     if journal_path is not None:
@@ -88,13 +75,13 @@ async def gateway_session(profile: str, journal_path: Path | None = None):
             try:
                 await asyncio.wait_for(session.initialize(), CALL_TIMEOUT)
             except (asyncio.TimeoutError, Exception) as exc:  # noqa: BLE001
-                pytest.fail(
-                    f"serveur MCP injoignable via `python -m {SERVER_MODULE}` : "
-                    f"{type(exc).__name__}: {exc}"
-                )
+                pytest.fail(f"serveur MCP injoignable via `python -m {SERVER_MODULE}` : "
+                            f"{type(exc).__name__}: {exc}")
 
             async def call(tool: str, arguments: dict) -> dict:
-                result = await asyncio.wait_for(session.call_tool(tool, arguments), CALL_TIMEOUT)
+                result = await asyncio.wait_for(
+                    session.call_tool(tool, arguments), CALL_TIMEOUT
+                )
                 texts = [c.text for c in result.content if getattr(c, "text", None)]
                 assert texts, f"réponse vide du tool {tool}"
                 envelope = json.loads(texts[0])
@@ -117,11 +104,8 @@ async def call_tool(
 def read_journal(path: Path) -> list[dict]:
     if not Path(path).exists():
         return []
-    return [
-        json.loads(line)
-        for line in Path(path).read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    return [json.loads(line)
+            for line in Path(path).read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
 @pytest.fixture()

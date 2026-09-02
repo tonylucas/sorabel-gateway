@@ -29,5 +29,9 @@ data/sorabel.db
 
 # IDE / OS
 .idea/
-.vscode/
+# `.vscode/` sans étoile exclurait le dossier entier, et git n'y descendrait
+# plus : les ré-inclusions ci-dessous seraient sans effet.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .DS_Store
