@@ -1,4 +1,4 @@
-.PHONY: install up down seed test fmt lint serve client journal
+.PHONY: install up down seed test fmt lint serve serve-http client journal ui ui-install
 
 install:
 	uv sync
@@ -25,6 +25,15 @@ lint:
 
 serve:
 	uv run python -m mcp_server.server
+
+serve-http:
+	uv run python -m mcp_server.http_server
+
+ui-install:
+	cd ui && npm install
+
+ui:
+	cd ui && npm run dev
 
 client:
 	uv run python scripts/mcp_client.py --profile $${PROFILE:-support}
