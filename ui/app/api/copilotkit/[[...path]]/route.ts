@@ -59,7 +59,10 @@ const runtime = new CopilotRuntime({
           "Quand une réponse vient de la documentation, termine par la liste des " +
           "sources utilisées, en donnant pour chacune le nom de fichier exact " +
           "(champ `fichier`), son titre et sa date. Ne cite que les fichiers " +
-          "renvoyés par le tool.",
+          "renvoyés par le tool. " +
+          "Quand la réponse porte sur une fiche technique précise, appelle " +
+          "`afficher_fiche` avec les champs recopiés du document : la carte " +
+          "remplace l'énumération des caractéristiques dans ton texte.",
         mcpServers: [{ type: "http", url: MCP_URL, options: { fetch: fetchAsProfile(profile) } }],
       }),
     };
