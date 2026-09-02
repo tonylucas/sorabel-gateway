@@ -4,11 +4,11 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 
 ## Features
 
-- Recherche documentaire avancée sur le corpus : dense + lexicale (hybride), reranking, réponses sourcées (titre + référence + date), refus explicite hors corpus (à construire)
+- Recherche documentaire hybride : dense + lexicale fusionnées par RRF, routage par référence exacte, réponses sourcées (titre + référence + date), refus explicite hors corpus — **gain mesuré dans `eval/rapport_gain.md`**
 - Accès aux données en langage naturel : génération SQL lecture seule, périmètre de tables par profil, requête toujours renvoyée avec le résultat (à construire)
 - Tools figés pour les besoins récurrents : `check_stock`, `order_status` (à construire)
 - Serveur MCP unique exposant les 8 tools du catalogue, sous matrice d'accès par profil (`support`, `commercial`, `dev`) avec journalisation de chaque appel — matrice et journal en place, moteurs en cours
-- Données en place : base SQL générée par `scripts/seed.py`, corpus de ~400 documents, Chroma prête via docker compose (index encore vide)
+- Données en place : base SQL générée par `scripts/seed.py`, corpus de 400 fichiers → 350 documents indexés après dédoublonnage par version
 - Client MCP de test jouable avec les deux profils, en stdio ou en HTTP (`scripts/mcp_client.py`)
 - App bot de démonstration (Next.js + CopilotKit, agent Gemini) branchée sur `/mcp` comme le serait Slack
 
@@ -18,22 +18,18 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 - Python 3.11 (géré avec `uv`)
 - Chroma pour l'index vectoriel (`docker compose`, port 8002)
 - SQLite pour la base (`data/sorabel.db`, générée par le seed, à ouvrir en lecture seule)
+- `fastembed` pour les embeddings (ONNX, multilingue, ~250 Mo — pas de PyTorch) et `rank-bm25` pour la piste lexicale
 - SDK MCP (`mcp`) pour le serveur — deux canaux : stdio et Streamable HTTP sur `/mcp`
 - Next.js + CopilotKit (`ui/`) pour l'app bot, agent Gemini via l'AI SDK
-- `pypdf` / `beautifulsoup4` pour l'extraction du corpus, `rank-bm25` pour la piste lexicale
-- `sentence-transformers` disponible via l'extra `vector` :
-
-```bash
-uv sync                       # cœur + outils de dev
-uv sync --extra vector        # + sentence-transformers
-```
+- `pypdf` / `beautifulsoup4` pour l'extraction du corpus
 
 ## Démarrage
 
 ```bash
 make install      # uv sync
 make seed         # génère data/sorabel.db (déterministe, aligné sur le corpus)
-make up           # docker compose : Chroma sur localhost:8002
+make ingest       # construit l'index documentaire (.chroma/) — requis avant make test
+make eval         # régénère eval/rapport_gain.md (E6)
 make test         # suite d'acceptance (rouge tant que la gateway n'est pas construite)
 make serve        # serveur MCP stdio (profil via SORABEL_PROFILE)
 make serve-http   # serveur MCP Streamable HTTP sur http://127.0.0.1:8000/mcp
@@ -88,8 +84,9 @@ docs/
 eval/
   questions_rag.jsonl # questions documentaires : couvertes, hors corpus, par référence exacte
   questions_sql.jsonl # questions métier en langage naturel, dont cas limites
-ingest/               # chaîne d'ingestion du corpus (à construire)
-retrieval/            # recherche documentaire (à construire)
+  run_eval.py         # mesure dense vs lexical vs hybride → rapport_gain.md
+ingest/               # parse.py (métadonnées déclarées, dédoublonnage), index.py (Chroma)
+retrieval/            # embed.py, search.py (hybride + porte de pertinence), answer.py
 sql/                  # accès SQL en langage naturel (à construire)
 gateway/              # la gouvernance : matrice d'accès, journal, catalogue des 8 tools
 mcp_server/           # les deux canaux : server.py (stdio), http_server.py (/mcp)

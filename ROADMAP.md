@@ -71,7 +71,7 @@ Deux contraintes de la suite à respecter dès maintenant :
 
 ---
 
-## 3 · RAG — *la première vraie démo*
+## 3 · RAG — *la première vraie démo* — **fait**
 
 - `ingest/` — normalisation PDF/HTML/MD, métadonnées déclarées, dédoublonnage
   par `doc_id`, un chunk par document, indexation Chroma (docker, port 8002)
@@ -82,8 +82,34 @@ Deux contraintes de la suite à respecter dès maintenant :
 - `answer_question` — citations construites **depuis les métadonnées**
 - `eval/run_eval.py` → `eval/rapport_gain.md`
 
-**Vérification** : `test_rag.py` au vert (4 tests). Dans le bot : une question
-métier reçoit une réponse sourcée, une question hors corpus un refus.
+**Vérification** : `make test` donne **34 passés / 4 échoués**, les quatre
+restants étant ceux du Text-to-SQL (étape 4). `test_rag.py` et `test_mcp.py` sont
+au vert.
+
+**Gain mesuré** (`eval/rapport_gain.md`, régénérable par `make eval`) :
+
+| Mode | `reference_exacte` | `couverte` |
+|---|---|---|
+| dense (baseline) | **0 %** | 79 % |
+| lexical | 100 % | 86 % |
+| **hybride** | **100 %** | **93 %** |
+
+Le dense à 0 % sur la référence exacte est le résultat attendu : `REF-8842` n'a
+pas de sens à encoder, c'est une chaîne. Le routage par référence appartient à
+l'hybride, pas à la baseline — sans quoi la comparaison serait truquée.
+
+Porte de pertinence : **8/8 refus corrects, 20/22 réponses correctes**, et
+surtout **aucune réponse hors corpus** — c'est la contrainte de calibrage, une
+réponse manquée coûte moins qu'une réponse inventée.
+
+**Reranking écarté**, pas oublié : le Recall@5 par référence exacte est déjà à
+100 %, un cross-encoder ne peut rien y améliorer, et il pèse 1 Go de plus dans
+l'image Cloud Run. À reprendre si le corpus grossit.
+
+**Réponse extractive**, pas générée côté serveur : les documents font une page,
+le passage *est* la réponse, et le LLM du host la met en forme en la recevant
+comme *tool result*. Une génération de plus côté Python coûterait une latence et
+un quota pour reformuler ce qu'on a déjà.
 
 ---
 

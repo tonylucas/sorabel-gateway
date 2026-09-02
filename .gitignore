@@ -23,6 +23,7 @@ htmlcov/
 # Données locales & runtime
 .docker-data/
 chroma-data/
+.chroma/
 logs/*.jsonl
 data/sorabel.db
 

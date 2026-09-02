@@ -1,10 +1,16 @@
-.PHONY: install up down seed test fmt lint serve serve-http client journal ui ui-install
+.PHONY: install up down seed ingest eval test fmt lint serve serve-http client journal ui ui-install
 
 install:
 	uv sync
 
 seed:
 	uv run python scripts/seed.py
+
+ingest:
+	uv run python -m ingest.index
+
+eval:
+	uv run python -m eval.run_eval
 
 up:
 	docker compose up -d
@@ -21,7 +27,7 @@ fmt:
 
 lint:
 	uv run ruff check .
-	uv run mypy ingest retrieval sql gateway mcp_server
+	uv run mypy ingest retrieval sql gateway mcp_server eval
 
 serve:
 	uv run python -m mcp_server.server

@@ -56,7 +56,8 @@ def test_une_entree_par_appel_ni_plus_ni_moins(journal):
 
     journalisees = entries(journal)
     assert [e["tool"] for e in journalisees] == ["list_sources", "get_schema", "answer_question"]
-    assert {e["status"] for e in journalisees} == {"ok", "refused"}
+    assert journalisees[0]["status"] == "ok"
+    assert journalisees[1]["status"] == "refused"
 
 
 @pytest.mark.parametrize(

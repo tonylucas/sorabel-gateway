@@ -12,11 +12,7 @@ dependencies = [
     "pypdf>=4.2,<6",
     "beautifulsoup4>=4.12,<5",
     "rank-bm25>=0.2,<0.3",
-]
-
-[project.optional-dependencies]
-vector = [
-    "sentence-transformers>=3,<4",
+    "fastembed>=0.8.0",
 ]
 
 [dependency-groups]
