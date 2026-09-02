@@ -22,8 +22,14 @@ DIMENSIONS = 384
 
 @lru_cache(maxsize=1)
 def _model():
+    import warnings
+
     from fastembed import TextEmbedding
 
+    # fastembed ≥ 0.6 est passé au mean pooling sur ce modèle. C'est le
+    # comportement sous lequel `eval/rapport_gain.md` a été mesuré ; revenir au
+    # CLS d'origine imposerait d'épingler 0.5.1 et de tout remesurer.
+    warnings.filterwarnings("ignore", message=".*mean pooling.*", category=UserWarning)
     return TextEmbedding(MODEL_NAME)
 
 

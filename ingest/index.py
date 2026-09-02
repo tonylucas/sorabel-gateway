@@ -9,6 +9,7 @@ Usage : ``make ingest``.
 
 from __future__ import annotations
 
+import logging
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -19,8 +20,13 @@ os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 
 import chromadb  # noqa: E402
 
-from ingest.parse import Document, dedupe, load_corpus
-from retrieval.embed import embed
+from ingest.parse import Document, dedupe, load_corpus  # noqa: E402
+from retrieval.embed import embed  # noqa: E402
+
+# Même désactivée, Chroma 0.5.23 tente l'envoi et journalise l'échec en `error`.
+# C'est un bug connu de cette version, sans effet — mais « Failed » dans la
+# sortie de `make ingest` laisse croire à une panne.
+logging.getLogger("chromadb.telemetry").setLevel(logging.CRITICAL)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CHROMA_PATH = Path(os.environ.get("CHROMA_PATH", REPO_ROOT / ".chroma"))
