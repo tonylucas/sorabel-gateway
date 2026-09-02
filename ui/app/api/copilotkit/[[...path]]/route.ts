@@ -48,6 +48,10 @@ const runtime = new CopilotRuntime({
         model: MODEL,
         apiKey: apiKey(),
         maxSteps: 8,
+        // L'agent ne fait qu'aiguiller vers un tool : le raisonnement est du
+        // délai pur. `minimal` le coupe (0 token de pensée mesuré) ; sur les
+        // modèles Gemini 3, thinkingBudget: 0 est refusé.
+        providerOptions: { google: { thinkingConfig: { thinkingLevel: "minimal" } } },
         prompt:
           "Tu es l'assistant interne Sorabel. Tu réponds en français, brièvement. " +
           "Tu ne réponds qu'à partir des tools de la gateway : n'invente jamais " +

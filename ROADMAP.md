@@ -32,8 +32,14 @@ réponse s'affiche.
   pas de quota API, et un projet GCP en prépaiement épuisé renvoie `429` sans
   retomber sur le free tier. Un projet neuf, non lié à un compte de facturation,
   est sur le free tier et répond. Modèle : `gemini-3.6-flash` — les `2.5` ne sont
-  plus servies aux nouveaux projets (404), et `3.7-flash` raisonne par défaut
-  (~25 s pour un bonjour, à retester si on veut y passer).
+  plus servies aux nouveaux projets (404). Raisonnement coupé par
+  `thinkingConfig.thinkingLevel: "minimal"` — 0 token de pensée mesuré, contre
+  329 par défaut ; `thinkingBudget: 0` est refusé sur les Gemini 3.
+- **Latence du free tier : ~13 s par appel**, quel que soit le raisonnement (une
+  boucle « choisir un tool puis rédiger » prend ~27 s). C'est le tier, pas le
+  modèle. À surveiller : la suite d'acceptance coupe à 30 s par appel, et
+  `ask_database` fera un appel Gemini depuis Python. Si ça frotte, basculer sur
+  un projet facturé ou sur Vertex AI.
 
 ---
 
