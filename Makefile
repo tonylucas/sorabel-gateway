@@ -21,7 +21,7 @@ fmt:
 
 lint:
 	uv run ruff check .
-	uv run mypy ingest retrieval sql mcp_server
+	uv run mypy ingest retrieval sql gateway mcp_server
 
 serve:
 	uv run python -m mcp_server.server
