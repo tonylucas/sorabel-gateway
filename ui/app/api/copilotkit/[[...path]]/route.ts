@@ -35,7 +35,7 @@ const runtime = new CopilotRuntime({
     return {
       default: new BuiltInAgent({
         model: MODEL,
-        apiKey: process.env.GOOGLE_API_KEY,
+        apiKey: process.env.GOOGLE_API_KEY || undefined,
         maxSteps: 8,
         prompt:
           "Tu es l'assistant interne Sorabel. Tu réponds en français, brièvement. " +
