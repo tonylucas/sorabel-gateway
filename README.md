@@ -7,7 +7,7 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 - Recherche documentaire avancée sur le corpus : dense + lexicale (hybride), reranking, réponses sourcées (titre + référence + date), refus explicite hors corpus (à construire)
 - Accès aux données en langage naturel : génération SQL lecture seule, périmètre de tables par profil, requête toujours renvoyée avec le résultat (à construire)
 - Tools figés pour les besoins récurrents : `check_stock`, `order_status` (à construire)
-- Serveur MCP unique exposant tout le catalogue, sous matrice d'accès par profil (`support`, `commercial`) avec journalisation de chaque appel (à construire)
+- Serveur MCP unique exposant les 8 tools du catalogue, sous matrice d'accès par profil (`support`, `commercial`, `dev`) avec journalisation de chaque appel — matrice et journal en place, moteurs en cours
 - Données en place : base SQL générée par `scripts/seed.py`, corpus de ~400 documents, Chroma prête via docker compose (index encore vide)
 - Client MCP de test jouable avec les deux profils, en stdio ou en HTTP (`scripts/mcp_client.py`)
 - App bot de démonstration (Next.js + CopilotKit, agent Gemini) branchée sur `/mcp` comme le serait Slack
@@ -88,10 +88,11 @@ docs/
 eval/
   questions_rag.jsonl # questions documentaires : couvertes, hors corpus, par référence exacte
   questions_sql.jsonl # questions métier en langage naturel, dont cas limites
-ingest/               # chaîne d'ingestion du corpus (à concevoir et construire)
-retrieval/            # recherche documentaire (à concevoir et construire)
-sql/                  # accès SQL en langage naturel (à concevoir et construire)
-mcp_server/           # serveur MCP de la gateway (à concevoir et construire)
+ingest/               # chaîne d'ingestion du corpus (à construire)
+retrieval/            # recherche documentaire (à construire)
+sql/                  # accès SQL en langage naturel (à construire)
+gateway/              # la gouvernance : matrice d'accès, journal, catalogue des 8 tools
+mcp_server/           # les deux canaux : server.py (stdio), http_server.py (/mcp)
 scripts/
   seed.py             # génère et peuple data/sorabel.db
   mcp_client.py       # client MCP de test (stdio, ou --http)

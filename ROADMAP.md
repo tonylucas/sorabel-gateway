@@ -37,10 +37,10 @@ réponse s'affiche.
 
 ---
 
-## 2 · Serveur MCP complet — *les 8 tools, vides*
+## 2 · Serveur MCP complet — *les 8 tools, vides* — **fait**
 
-Le catalogue au complet, chaque tool renvoyant une enveloppe conforme avec des
-données factices.
+Le catalogue au complet, chaque tool renvoyant une enveloppe conforme et une
+charge utile vide.
 
 - `gateway/tools.py` — les 8 fonctions, signatures définitives
 - `gateway/access.py` — enveloppe `{status, payload, message}` + journal JSONL
@@ -48,8 +48,15 @@ données factices.
 - `mcp_server/http_server.py` — canal HTTP, mêmes tools
 - `resolve_profile()` — header s'il existe, sinon `SORABEL_PROFILE`
 
-**Vérification** : `make test` ne tombe plus sur « module introuvable » ;
-`tests/acceptance/test_mcp.py::test_journal_exhaustif` passe.
+**Vérification** : `make test` donne **17 passés / 9 échoués**, et les neuf
+restants attendent tous un moteur — quatre pour le RAG (étape 3), quatre pour le
+SQL (étape 4), plus `test_briques_du_rag_utilisables_separement`, qui a besoin
+de vrais résultats de recherche. Les trois tests de `test_mcp.py` qui portent sur
+la matrice, le refus et le journal passent.
+
+Les charges utiles des tools sont **vides, pas factices** : une donnée bidon
+ferait passer `test_rag` pour de mauvaises raisons et masquerait le travail
+restant.
 
 Deux contraintes de la suite à respecter dès maintenant :
 - **une entrée de journal par appel**, ni plus ni moins (égalité stricte) ;

@@ -1,50 +1,54 @@
-"""Canal Streamable HTTP de la gateway — route unique ``/mcp``.
+"""Canal Streamable HTTP — route unique `/mcp`, tous profils dans un process.
 
-Étape 1 de la roadmap : le circuit vide. Un seul tool, ``ping``, dont le seul
-rôle est de prouver que la chaîne front → runtime CopilotKit → client MCP →
-serveur répond, et que le header de profil traverse bien le host.
+Le profil est déclaré par le host à chaque requête, dans `X-Sorabel-Profile` ;
+un middleware ASGI le pose avant que le tool ne s'exécute.
 
 Lancement : ``make serve-http`` (ou ``uv run python -m mcp_server.http_server``).
 """
 
 from __future__ import annotations
 
-import json
 import os
 
-from mcp.server.fastmcp import Context, FastMCP
+from gateway.access import set_profile
+from mcp_server.app import build_server
+from mcp_server.profile import resolve_profile
 
-from mcp_server.profile import PROFILE_HEADER, resolve_profile
-
-mcp = FastMCP("sorabel-gateway", host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))
-
-
-def _headers(ctx: Context) -> dict[str, str]:
-    """Headers HTTP de l'appel courant, ou {} hors transport HTTP."""
-    request = getattr(ctx.request_context, "request", None)
-    return dict(getattr(request, "headers", {}) or {})
+mcp = build_server(host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))
 
 
-@mcp.tool()
-def ping(ctx: Context) -> str:
-    """Vérifie que la gateway répond. Renvoie le profil vu par le serveur.
+class ProfileMiddleware:
+    """Pose le profil de la requête courante avant d'entrer dans le serveur MCP.
 
-    À utiliser uniquement pour un diagnostic de connexion, jamais pour répondre
-    à une question métier.
+    Le profil voyage dans une `ContextVar`, donc par tâche asyncio. Vérifié sur
+    30 appels concurrents entrelacés (support refusé / commercial autorisé sur
+    `get_schema`) : aucune fuite d'un profil vers un autre.
     """
-    headers = _headers(ctx)
-    return json.dumps(
-        {
-            "status": "ok",
-            "payload": {
-                "profile": resolve_profile(headers),
-                "profile_header_recu": PROFILE_HEADER in headers,
-            },
-            "message": "gateway joignable",
-        },
-        ensure_ascii=False,
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            headers = {
+                k.decode("latin-1").lower(): v.decode("latin-1")
+                for k, v in scope.get("headers", [])
+            }
+            set_profile(resolve_profile(headers))
+        await self.app(scope, receive, send)
+
+
+def main() -> None:
+    import uvicorn
+
+    app = ProfileMiddleware(mcp.streamable_http_app())
+    uvicorn.run(
+        app,
+        host=mcp.settings.host,
+        port=mcp.settings.port,
+        log_level=mcp.settings.log_level.lower(),
     )
 
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http")
+    main()
