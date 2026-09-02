@@ -1,6 +1,6 @@
 "use client";
 
-import { CopilotChat, CopilotKitProvider } from "@copilotkit/react-core/v2";
+import { CopilotChat, CopilotKit } from "@copilotkit/react-core/v2";
 import { useState } from "react";
 import "@copilotkit/react-core/v2/styles.css";
 
@@ -28,7 +28,7 @@ export default function Page() {
 
       {/* La clé force le remontage à chaque changement de profil : la session MCP
           est renégociée, et l'historique d'un autre profil ne fuit pas. */}
-      <CopilotKitProvider
+      <CopilotKit
         key={profile}
         runtimeUrl="/api/copilotkit"
         headers={{ "X-Sorabel-Profile": profile }}
@@ -41,7 +41,7 @@ export default function Page() {
             }}
           />
         </div>
-      </CopilotKitProvider>
+      </CopilotKit>
     </main>
   );
 }
