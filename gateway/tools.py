@@ -28,8 +28,10 @@ def answer_question(question: str) -> dict:
     """Répond à une question sur la documentation Sorabel, sources à l'appui.
 
     À utiliser quand l'utilisateur attend une réponse rédigée : procédure SAV,
-    garantie, caractéristiques d'un produit. Chaque réponse cite ses sources
-    (titre, référence, date). Hors du corpus, l'outil le dit au lieu d'inventer.
+    garantie, caractéristiques d'un produit. Chaque réponse cite ses sources —
+    titre, référence, date, et le **nom exact du fichier** dont elle vient
+    (`payload.sources[].fichier`), à citer à l'utilisateur. Hors du corpus,
+    l'outil le dit au lieu d'inventer.
 
     Ne pas l'utiliser pour obtenir une liste de documents à parcourir soi-même
     (voir `search_docs`), ni pour un stock ou une commande (voir `check_stock`,

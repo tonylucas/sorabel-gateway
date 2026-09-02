@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from ingest.parse import Document, dedupe, doc_id_from, load_corpus
+from retrieval.answer import citation
 from retrieval.search import pertinent, search
 
 
@@ -88,3 +89,14 @@ def test_question_couverte_passe_la_porte():
     question = "quelle est la procédure de retour d'un produit défectueux sous garantie ?"
     repond, _, _ = pertinent(question, search(question, k=5))
     assert repond
+
+
+def test_la_citation_nomme_le_fichier_exact_version_comprise():
+    # Ce qu'on ouvre pour vérifier une réponse — et ce qui distingue la version
+    # retenue de celle qu'a écartée le dédoublonnage.
+    hits = search("REF-8842", k=1)
+    source = citation(hits[0])
+
+    assert source["fichier"] == "REF-8842-v2.1.pdf"
+    assert source["chemin"] == "data/corpus/fiches/REF-8842-v2.1.pdf"
+    assert (Path(__file__).resolve().parent.parent / source["chemin"]).exists()

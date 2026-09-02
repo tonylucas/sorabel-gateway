@@ -56,7 +56,11 @@ const runtime = new CopilotRuntime({
           "Tu es l'assistant interne Sorabel. Tu réponds en français, brièvement. " +
           "Tu ne réponds qu'à partir des tools de la gateway : n'invente jamais " +
           "une donnée produit, un stock ou un chiffre. Si un tool refuse, explique " +
-          "le refus à l'utilisateur au lieu de contourner.",
+          "le refus à l'utilisateur au lieu de contourner. " +
+          "Quand une réponse vient de la documentation, termine par la liste des " +
+          "sources utilisées, en donnant pour chacune le nom de fichier exact " +
+          "(champ `fichier`), son titre et sa date. Ne cite que les fichiers " +
+          "renvoyés par le tool.",
         mcpServers: [
           { type: "http", url: MCP_URL, options: { fetch: fetchAsProfile(profile) } },
         ],
