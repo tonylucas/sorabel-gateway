@@ -2,6 +2,7 @@
 
 import { CopilotChat, CopilotKit } from "@copilotkit/react-core/v2";
 import { useState } from "react";
+import { FicheTool } from "./fiche";
 import { TableauSQL } from "./sql";
 import "@copilotkit/react-core/v2/styles.css";
 
@@ -34,6 +35,7 @@ export default function Page() {
         runtimeUrl="/api/copilotkit"
         headers={{ "X-Sorabel-Profile": profile }}
       >
+        <FicheTool />
         <TableauSQL />
         <div className="min-h-0 flex-1">
           <CopilotChat
