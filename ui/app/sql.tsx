@@ -1,8 +1,25 @@
 "use client";
 
-import { useRenderTool } from "@copilotkit/react-core/v2";
+import {
+  CopilotChatMessageView,
+  type CopilotChatMessageViewProps,
+  useRenderTool,
+} from "@copilotkit/react-core/v2";
 import { z } from "zod";
-import { vue } from "./sql-payload";
+import { sansSyntheseSql, vue } from "./sql-payload";
+
+/**
+ * Vue de messages du chat, à passer en slot `messageView`. Elle n'existe que
+ * pour retirer la synthèse rédigée après `ask_database` : le tableau est la
+ * réponse, la répéter en prose en ferait deux.
+ */
+export const VueMessages = Object.assign(
+  ({ messages, ...props }: CopilotChatMessageViewProps) => (
+    <CopilotChatMessageView {...props} messages={sansSyntheseSql(messages ?? [])} />
+  ),
+  // Le slot est typé sur `CopilotChatMessageView`, statique `Cursor` compris.
+  { Cursor: CopilotChatMessageView.Cursor },
+);
 
 function RequeteSQL({ sql }: { sql?: string }) {
   if (!sql) return null;
