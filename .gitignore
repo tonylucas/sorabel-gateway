@@ -29,6 +29,9 @@ logs/*.jsonl
 # dérivés, transitoires, reconstruits seuls.
 data/sorabel.db*
 
+# Copies de travail créées par Claude Code, jamais partagées.
+.claude/worktrees/
+
 # IDE / OS
 .idea/
 # `.vscode/` sans étoile exclurait le dossier entier, et git n'y descendrait

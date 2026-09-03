@@ -24,3 +24,11 @@ jobs:
         run: uv run ruff check .
       - name: Acceptance
         run: uv run pytest -q
+        env:
+          # `ask_database` génère son SQL avec Gemini : sans cette clé, les
+          # quatre tests d'acceptance SQL échouent. À renseigner dans
+          # Settings → Secrets and variables → Actions.
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          # Le free tier répond entre 1 s et 30 s : le budget par appel de la
+          # suite est relevé sur un runner partagé.
+          GATEWAY_TEST_TIMEOUT: "60"

@@ -51,6 +51,25 @@ COLLECTIONS_BY_PROFILE: dict[str, frozenset[str]] = {
     "dev": frozenset({"fiche_technique", "notice", "procedure_sav", "note_interne"}),
 }
 
+#: Périmètre SQL par profil : tables autorisées, puis colonnes interdites en
+#: `table.colonne`. La table `ventes` est fermée au support en entier — chacune
+#: de ses lignes porte `marge_ht`, la garder amputée n'aurait aucun intérêt
+#: métier. Source : `eval/questions_sql.jsonl`, cas SQL-17 à SQL-20.
+#:
+#: Étape 5 : ces deux dictionnaires deviendront la lecture des `GRANT` PostgreSQL
+#: (`has_column_privilege`), pour que le garde voie exactement ce que la base
+#: applique. La signature de `sql_scope()` ne bougera pas.
+SQL_TABLES_BY_PROFILE: dict[str, frozenset[str]] = {
+    "support": frozenset({"produits", "stocks", "commandes", "clients"}),
+    "commercial": frozenset({"produits", "stocks", "commandes", "clients", "ventes"}),
+    "dev": frozenset({"produits", "stocks", "commandes", "clients", "ventes"}),
+}
+SQL_COLUMNS_DENIED_BY_PROFILE: dict[str, frozenset[str]] = {
+    "support": frozenset({"produits.prix_achat_ht", "produits.marge_pct"}),
+    "commercial": frozenset(),
+    "dev": frozenset(),
+}
+
 _profile: ContextVar[str] = ContextVar("sorabel_profile", default=DEFAULT_PROFILE)
 
 
@@ -69,6 +88,14 @@ def can(profile: str, tool: str) -> bool:
 
 def collections(profile: str) -> frozenset[str]:
     return COLLECTIONS_BY_PROFILE.get(profile, frozenset())
+
+
+def sql_scope(profile: str) -> tuple[frozenset[str], frozenset[str]]:
+    """Tables autorisées et colonnes interdites (`table.colonne`) du profil."""
+    return (
+        SQL_TABLES_BY_PROFILE.get(profile, frozenset()),
+        SQL_COLUMNS_DENIED_BY_PROFILE.get(profile, frozenset()),
+    )
 
 
 # ── Enveloppe du contrat d'intégration ───────────────────────────────────────
