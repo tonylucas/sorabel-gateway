@@ -3,7 +3,7 @@
 import { CopilotChat, CopilotKit } from "@copilotkit/react-core/v2";
 import { useState } from "react";
 import { FicheTool } from "./fiche";
-import { TableauSQL, VueMessages } from "./sql";
+import { TableauSQL } from "./sql";
 import "@copilotkit/react-core/v2/styles.css";
 
 const PROFILES = ["support", "commercial", "dev"] as const;
@@ -39,7 +39,6 @@ export default function Page() {
         <TableauSQL />
         <div className="min-h-0 flex-1">
           <CopilotChat
-            messageView={VueMessages}
             labels={{
               welcomeMessageText:
                 "Posez une question sur la documentation Sorabel, ou sur les données : stock, commandes, clients.",

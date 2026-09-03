@@ -52,39 +52,3 @@ export function vue(result: string): Vue {
 
   return { type: "tableau", sql, rows, columns };
 }
-
-type MessageLike = {
-  role?: string;
-  toolCalls?: { function?: { name?: string } }[];
-};
-
-/**
- * Retire la synthèse que l'agent rédige après `ask_database` : le tableau
- * affiche déjà les lignes, et rien ne permet d'empêcher ce message à la source.
- * Il vient de la boucle multi-étapes du `BuiltInAgent`, côté serveur ;
- * `followUp: false` ne gouverne que les tools frontend.
- *
- * Un seul message est masqué par interrogation : ce qui suit un autre tool, ou
- * une nouvelle question, reste visible.
- */
-export function sansSyntheseSql<T extends MessageLike>(messages: T[]): T[] {
-  let aInterroge = false;
-  return messages.filter((message) => {
-    if (message.role === "user") {
-      aInterroge = false;
-      return true;
-    }
-    if (message.role !== "assistant") return true;
-
-    const appels = message.toolCalls ?? [];
-    if (appels.length > 0) {
-      aInterroge = appels.some((appel) => appel.function?.name === "ask_database");
-      return true;
-    }
-    if (aInterroge) {
-      aInterroge = false;
-      return false;
-    }
-    return true;
-  });
-}
