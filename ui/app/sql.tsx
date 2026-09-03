@@ -35,26 +35,20 @@ export function TableauSQL() {
 
         const resultat = vue(props.result);
 
+        // Le composant n'écrit aucune prose : refus, résultat vide, message
+        // d'erreur sont dits par l'agent, en français, dans son propre message.
+        // Tout ce que le texte ne peut pas porter — les lignes, la requête —
+        // est ici. Deux sources pour la même phrase feraient un doublon.
         if (resultat.type === "illisible") {
-          return <p className="my-2 text-sm opacity-60">Résultat de la base illisible.</p>;
+          console.warn("[sorabel] résultat de ask_database illisible", props.result);
+          return <></>;
         }
 
-        if (resultat.type === "refus") {
-          return <p className="my-2 rounded border px-3 py-2 text-sm">{resultat.message}</p>;
-        }
+        if (resultat.type === "refus") return <></>;
 
-        if (resultat.type === "scalaire") {
+        if (resultat.type === "scalaire" || resultat.type === "vide") {
           return (
             <div className="my-2 text-sm">
-              <RequeteSQL sql={resultat.sql} />
-            </div>
-          );
-        }
-
-        if (resultat.type === "vide") {
-          return (
-            <div className="my-2 text-sm">
-              <p className="opacity-60">Aucune ligne ne répond à cette question.</p>
               <RequeteSQL sql={resultat.sql} />
             </div>
           );
