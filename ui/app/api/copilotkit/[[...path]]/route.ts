@@ -62,7 +62,11 @@ const runtime = new CopilotRuntime({
           "renvoyés par le tool. " +
           "Quand la réponse porte sur une fiche technique précise, appelle " +
           "`afficher_fiche` avec les champs recopiés du document : la carte " +
-          "remplace l'énumération des caractéristiques dans ton texte.",
+          "remplace l'énumération des caractéristiques dans ton texte. " +
+          "Le résultat d'`ask_database` est déjà affiché à l'utilisateur, " +
+          "lignes et requête comprises : ne le réénumère jamais. Réponds en " +
+          "une phrase qui donne le chiffre ou l'essentiel, sans recopier le " +
+          "détail des lignes.",
         mcpServers: [{ type: "http", url: MCP_URL, options: { fetch: fetchAsProfile(profile) } }],
       }),
     };

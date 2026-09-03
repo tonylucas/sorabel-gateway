@@ -17,9 +17,6 @@ de valider la chaîne complète avant d'y mettre quoi que ce soit de coûteux.
 - `ui/` — Next.js, CopilotKit UI + runtime sur `/api/copilotkit`, adapter Gemini
 - `ui/.env.local` — `GOOGLE_API_KEY`, `MCP_URL`
 
-**Vérification** : dans le chat, « appelle ping » déclenche `tools/call` et la
-réponse s'affiche.
-
 **Résultat des deux spikes** :
 - **Header custom vers un MCP distant : oui.** CopilotKit 1.70 expose
   `mcpServers: [{ type: "http", url, options: { fetch } }]` ; le `fetch` enveloppé

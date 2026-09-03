@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "format": "biome check --write .",
-    "format:check": "biome check ."
+    "format:check": "biome check .",
+    "test": "node --test --experimental-strip-types app/*.test.mjs"
   },
   "dependencies": {
     "@copilotkit/react-core": "^1.70.0",
