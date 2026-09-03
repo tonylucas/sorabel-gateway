@@ -42,7 +42,7 @@ export default function Page() {
             messageView={VueMessages}
             labels={{
               welcomeMessageText:
-                "Posez une question sur la documentation Sorabel, ou tapez « appelle ping » pour vérifier la gateway.",
+                "Posez une question sur la documentation Sorabel, ou sur les données : stock, commandes, clients.",
             }}
           />
         </div>
