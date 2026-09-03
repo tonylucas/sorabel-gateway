@@ -10,6 +10,7 @@ Exemples :
         --tool ask_database --args '{"question": "combien de commandes en avril ?"}'
     uv run python scripts/mcp_client.py --profile support \
         --tool search_docs --args '{"query": "REF-8842"}'
+    uv run python scripts/mcp_client.py --compare --tool get_schema
 """
 
 from __future__ import annotations
@@ -70,18 +71,59 @@ async def run(profile: str, tool: str | None, args: dict, http: bool = False) ->
                             print(text)
 
 
+async def compare(tool: str, args: dict, http: bool = False) -> None:
+    """Le même appel sous deux profils, l'un à côté de l'autre.
+
+    C'est la démonstration de la matrice : un catalogue plus court pour le
+    support, et le même appel qui passe pour l'un et se voit refuser à l'autre.
+    """
+    print(f"— {tool} {json.dumps(args, ensure_ascii=False)} —\n")
+    for profile in ("support", "commercial"):
+        async with _transport(profile, http) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                catalogue = sorted(t.name for t in (await session.list_tools()).tools)
+                result = await session.call_tool(tool, args)
+                texts = [t for t in (getattr(b, "text", None) for b in result.content) if t]
+                envelope = json.loads(texts[0]) if texts else {}
+
+        print(f"{profile:<11} {len(catalogue)} tools annoncés : {', '.join(catalogue)}")
+        print(
+            f"{'':<11} → {envelope.get('status', '?')}"
+            f"{' · ' + envelope['payload']['code'] if envelope.get('payload', {}).get('code') else ''}"
+        )
+        if message := envelope.get("message", "").strip():
+            print(f"{'':<11}   {message}")
+        if sql := envelope.get("payload", {}).get("sql"):
+            print(f"{'':<11}   {sql}")
+        if rows := envelope.get("payload", {}).get("rows"):
+            print(f"{'':<11}   {rows[:3]}")
+        print()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Client de test de la Sorabel Data Gateway")
     parser.add_argument("--profile", default="support", choices=["support", "commercial", "dev"])
     parser.add_argument("--tool", default=None, help="Nom du tool à appeler")
     parser.add_argument("--args", default="{}", help="Arguments du tool (JSON)")
     parser.add_argument(
+        "--compare",
+        action="store_true",
+        help="Rejouer le même appel en support puis en commercial (démonstration de la matrice)",
+    )
+    parser.add_argument(
         "--http",
         action="store_true",
         help=f"Passer par le canal Streamable HTTP ({HTTP_URL}) au lieu de stdio",
     )
     ns = parser.parse_args()
-    asyncio.run(run(ns.profile, ns.tool, json.loads(ns.args), ns.http))
+    args = json.loads(ns.args)
+    if ns.compare:
+        if not ns.tool:
+            parser.error("--compare demande un --tool à rejouer")
+        asyncio.run(compare(ns.tool, args, ns.http))
+    else:
+        asyncio.run(run(ns.profile, ns.tool, args, ns.http))
 
 
 if __name__ == "__main__":

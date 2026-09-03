@@ -1,5 +1,10 @@
 """Matrice d'accès, profil courant et journal — le passage obligé de tout appel.
 
+La matrice elle-même vit dans `access.yaml`, à la racine : c'est un document de
+gouvernance, relu et amendé sans toucher au code. Ce module en est la seule
+lecture — `can()`, `tools_of()`, `collections()`, `sql_scope()`. Aucun tool
+n'ouvre le fichier lui-même, et rien d'autre ne décide d'une autorisation.
+
 Un seul décorateur, `@tool_access`, posé sur chacune des fonctions de
 `gateway.tools` : il résout le profil, autorise ou refuse, et journalise dans
 les deux cas. Aucun appel ne le contourne, quel que soit le canal.
@@ -14,12 +19,14 @@ import time
 from collections.abc import Callable
 from contextvars import ContextVar
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
+
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-PROFILES = ("support", "commercial", "dev")
 DEFAULT_PROFILE = "support"
 
 ALL_TOOLS = (
@@ -33,69 +40,115 @@ ALL_TOOLS = (
     "order_status",
 )
 
-#: Tools autorisés par profil. Reprend la matrice de `tests/acceptance/conftest.py`,
-#: qui fait foi : `support` n'a pas `get_schema`, `commercial` a tout. `dev` est
-#: le profil technique de l'IDE, sans restriction.
-TOOLS_BY_PROFILE: dict[str, frozenset[str]] = {
-    "support": frozenset(set(ALL_TOOLS) - {"get_schema"}),
-    "commercial": frozenset(ALL_TOOLS),
-    "dev": frozenset(ALL_TOOLS),
-}
+#: Les quatre types du corpus. Ni `ingest` ni Chroma n'en tiennent la liste — un
+#: document déclare son type, il ne le choisit pas dans une énumération. Elle
+#: n'existe donc qu'ici, pour rattraper une faute de frappe dans `access.yaml`.
+DOC_TYPES = frozenset({"fiche_technique", "notice", "procedure_sav", "note_interne"})
 
-#: Collections documentaires par profil. Les notes internes portent des
-#: négociations fournisseurs et des alertes qualité : un bot support ne doit pas
-#: pouvoir les ressortir à un client.
-COLLECTIONS_BY_PROFILE: dict[str, frozenset[str]] = {
-    "support": frozenset({"fiche_technique", "notice", "procedure_sav"}),
-    "commercial": frozenset({"fiche_technique", "notice", "procedure_sav", "note_interne"}),
-    "dev": frozenset({"fiche_technique", "notice", "procedure_sav", "note_interne"}),
-}
 
-#: Périmètre SQL par profil : tables autorisées, puis colonnes interdites en
-#: `table.colonne`. La table `ventes` est fermée au support en entier — chacune
-#: de ses lignes porte `marge_ht`, la garder amputée n'aurait aucun intérêt
-#: métier. Source : `eval/questions_sql.jsonl`, cas SQL-17 à SQL-20.
-#:
-#: Étape 5 : ces deux dictionnaires deviendront la lecture des `GRANT` PostgreSQL
-#: (`has_column_privilege`), pour que le garde voie exactement ce que la base
-#: applique. La signature de `sql_scope()` ne bougera pas.
-SQL_TABLES_BY_PROFILE: dict[str, frozenset[str]] = {
-    "support": frozenset({"produits", "stocks", "commandes", "clients"}),
-    "commercial": frozenset({"produits", "stocks", "commandes", "clients", "ventes"}),
-    "dev": frozenset({"produits", "stocks", "commandes", "clients", "ventes"}),
-}
-SQL_COLUMNS_DENIED_BY_PROFILE: dict[str, frozenset[str]] = {
-    "support": frozenset({"produits.prix_achat_ht", "produits.marge_pct"}),
-    "commercial": frozenset(),
-    "dev": frozenset(),
-}
+class Perimetre(NamedTuple):
+    """Ce qu'un profil peut atteindre, sur les trois dimensions de la matrice."""
+
+    tools: frozenset[str]
+    collections: frozenset[str]
+    sql_tables: frozenset[str]
+    sql_colonnes_interdites: frozenset[str]
+
+
+def access_path() -> Path:
+    return Path(os.environ.get("GATEWAY_ACCESS") or REPO_ROOT / "access.yaml")
+
+
+def _charge(path: Path) -> dict[str, Perimetre]:
+    """Lit et valide `access.yaml`.
+
+    La validation n'est pas décorative : ce fichier est la frontière de
+    confiance de l'autorisation, et un nom mal orthographié y ouvre ou y ferme
+    un accès sans rien signaler. `get_shema` mal tapé, et le profil se voit
+    refuser un tool qu'il devrait avoir ; `note_intern`, et le support hérite
+    des notes internes puisque le filtre ne correspond plus à rien.
+    """
+    brut = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    profils = brut.get("profils") or {}
+    if not profils:
+        raise ValueError(f"{path} : aucun profil déclaré")
+
+    matrice: dict[str, Perimetre] = {}
+    for nom, bloc in profils.items():
+        bloc = bloc or {}
+        sql = bloc.get("sql") or {}
+        perimetre = Perimetre(
+            tools=frozenset(bloc.get("tools") or ()),
+            collections=frozenset(bloc.get("collections") or ()),
+            sql_tables=frozenset(sql.get("tables") or ()),
+            sql_colonnes_interdites=frozenset(sql.get("colonnes_interdites") or ()),
+        )
+        if inconnus := perimetre.tools - set(ALL_TOOLS):
+            raise ValueError(f"{path} : profil {nom}, tools inconnus {sorted(inconnus)}")
+        if inconnues := perimetre.collections - DOC_TYPES:
+            raise ValueError(f"{path} : profil {nom}, collections inconnues {sorted(inconnues)}")
+        for colonne in perimetre.sql_colonnes_interdites:
+            table, _, reste = colonne.partition(".")
+            if not reste or table not in perimetre.sql_tables:
+                # Une colonne interdite sur une table hors périmètre est morte :
+                # la table est déjà refusée. Le plus souvent, c'est la table qui
+                # a été retirée du périmètre sans nettoyer la ligne.
+                raise ValueError(
+                    f"{path} : profil {nom}, colonne interdite {colonne!r} — attendu "
+                    f"`table.colonne` sur une table du périmètre"
+                )
+        matrice[nom] = perimetre
+
+    if DEFAULT_PROFILE not in matrice:
+        raise ValueError(f"{path} : le profil de repli {DEFAULT_PROFILE!r} doit être déclaré")
+    return matrice
+
+
+@lru_cache(maxsize=1)
+def matrice() -> dict[str, Perimetre]:
+    """La matrice, chargée une fois par process — un fichier statique, relu à chaud
+    par personne : la modifier demande un redéploiement, comme le code qu'elle régit."""
+    return _charge(access_path())
+
+
+def profiles() -> tuple[str, ...]:
+    return tuple(matrice())
+
 
 _profile: ContextVar[str] = ContextVar("sorabel_profile", default=DEFAULT_PROFILE)
 
 
 def set_profile(profile: str) -> None:
     """Posé par le canal, une fois par requête (HTTP) ou au démarrage (stdio)."""
-    _profile.set(profile if profile in PROFILES else DEFAULT_PROFILE)
+    _profile.set(profile if profile in matrice() else DEFAULT_PROFILE)
 
 
 def current_profile() -> str:
     return _profile.get()
 
 
+def _perimetre(profile: str) -> Perimetre:
+    """Un profil inconnu n'a droit à rien — jamais au périmètre du profil de repli."""
+    return matrice().get(profile, Perimetre(frozenset(), frozenset(), frozenset(), frozenset()))
+
+
 def can(profile: str, tool: str) -> bool:
-    return tool in TOOLS_BY_PROFILE.get(profile, frozenset())
+    return tool in _perimetre(profile).tools
+
+
+def tools_of(profile: str) -> frozenset[str]:
+    """Le catalogue visible par ce profil — ce que `tools/list` doit renvoyer."""
+    return _perimetre(profile).tools
 
 
 def collections(profile: str) -> frozenset[str]:
-    return COLLECTIONS_BY_PROFILE.get(profile, frozenset())
+    return _perimetre(profile).collections
 
 
 def sql_scope(profile: str) -> tuple[frozenset[str], frozenset[str]]:
     """Tables autorisées et colonnes interdites (`table.colonne`) du profil."""
-    return (
-        SQL_TABLES_BY_PROFILE.get(profile, frozenset()),
-        SQL_COLUMNS_DENIED_BY_PROFILE.get(profile, frozenset()),
-    )
+    p = _perimetre(profile)
+    return p.sql_tables, p.sql_colonnes_interdites
 
 
 # ── Enveloppe du contrat d'intégration ───────────────────────────────────────

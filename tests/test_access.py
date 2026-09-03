@@ -7,6 +7,7 @@ import json
 import pytest
 
 from gateway import access, tools
+from gateway.access import ALL_TOOLS
 
 
 @pytest.fixture(autouse=True)
@@ -96,3 +97,92 @@ def test_une_exception_devient_une_enveloppe(journal):
     (entry,) = entries(journal)
     assert entry["status"] == "refused"
     assert "ValueError: boum" == entry["erreur"]
+
+
+# ── access.yaml : la matrice hors du code ────────────────────────────────────
+
+
+def test_le_yaml_livre_dit_la_matrice_de_la_specification():
+    # `tests/conftest.py` est fourni et fait foi : le fichier de gouvernance
+    # doit dire la même chose que la spécification, sinon il ne gouverne rien.
+    assert access.tools_of("support") == frozenset(ALL_TOOLS) - {"get_schema"}
+    assert access.tools_of("commercial") == frozenset(ALL_TOOLS)
+    assert "note_interne" not in access.collections("support")
+    assert "note_interne" in access.collections("commercial")
+
+    tables, interdites = access.sql_scope("support")
+    assert "ventes" not in tables
+    assert interdites == {"produits.prix_achat_ht", "produits.marge_pct"}
+
+
+def test_profil_inconnu_n_a_droit_a_rien():
+    # Le repli sur `support` se joue à la résolution du profil, pas ici : un
+    # profil hors matrice qui hériterait du périmètre du support serait une
+    # élévation de privilège silencieuse.
+    assert access.tools_of("root") == frozenset()
+    assert access.collections("root") == frozenset()
+    assert access.sql_scope("root") == (frozenset(), frozenset())
+
+
+@pytest.mark.parametrize(
+    ("bloc", "attendu"),
+    [
+        ("tools: [get_shema]", "tools inconnus"),
+        ("tools: []\n    collections: [note_intern]", "collections inconnues"),
+        (
+            "tools: []\n    sql:\n      tables: [produits]\n      colonnes_interdites: [marge_pct]",
+            "colonne interdite",
+        ),
+        (
+            "tools: []\n    sql:\n      tables: [produits]\n      colonnes_interdites: [ventes.marge_ht]",
+            "colonne interdite",
+        ),
+    ],
+)
+def test_une_faute_de_frappe_arrete_le_demarrage(tmp_path, bloc, attendu):
+    # Une faute dans ce fichier ouvre ou ferme un accès sans rien signaler :
+    # elle doit coûter un démarrage, pas une fuite.
+    path = tmp_path / "access.yaml"
+    path.write_text(f"profils:\n  support:\n    {bloc}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=attendu):
+        access._charge(path)
+
+
+def test_le_profil_de_repli_doit_exister(tmp_path):
+    path = tmp_path / "access.yaml"
+    path.write_text("profils:\n  commercial:\n    tools: []\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="repli"):
+        access._charge(path)
+
+
+# ── tools/list filtré ────────────────────────────────────────────────────────
+
+
+async def test_le_catalogue_annonce_est_filtre_par_profil():
+    from mcp_server.app import build_server
+
+    serveur = build_server()
+
+    access.set_profile("support")
+    assert {t.name for t in await serveur.list_tools()} == access.tools_of("support")
+
+    access.set_profile("commercial")
+    assert {t.name for t in await serveur.list_tools()} == frozenset(ALL_TOOLS)
+
+
+async def test_un_tool_non_annonce_reste_appelable_et_refuse(journal):
+    # Le filtrage porte sur la découverte, pas sur l'exécution : `get_schema`
+    # appelé quand même doit rendre un refus métier journalisé, pas une erreur
+    # de protocole « unknown tool » — invisible au journal, et lue comme une
+    # panne par le host.
+    from mcp_server.app import build_server
+
+    serveur = build_server()
+    access.set_profile("support")
+
+    assert "get_schema" not in {t.name for t in await serveur.list_tools()}
+    resultat = await serveur.call_tool("get_schema", {})
+
+    (entry,) = entries(journal)
+    assert entry["status"] == "refused"
+    assert resultat
