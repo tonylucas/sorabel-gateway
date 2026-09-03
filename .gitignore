@@ -40,3 +40,6 @@ data/sorabel.db*
 !.vscode/settings.json
 !.vscode/extensions.json
 .DS_Store
+
+# PR Lens writes its previews here. They are rebuilt on demand.
+.pr-lens/
