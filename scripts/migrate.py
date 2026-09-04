@@ -12,9 +12,9 @@ Les commentaires `--` du fichier deviennent des `COMMENT ON` : PostgreSQL sait
 les stocker, SQLite non. C'est ce qui permettra à `sql.schema` de lire le DDL
 commenté depuis la base plutôt que depuis le fichier.
 
-Connexion : les variables libpq usuelles (`PGHOST`, `PGDATABASE`, `PGUSER`,
-`PGPASSWORD`), prises dans l'environnement ou dans `.env`. En administrateur —
-c'est la seule opération qui l'exige, la gateway ne connaît que les rôles.
+Connexion : `DATABASE_URL`, prise dans l'environnement ou dans `.env`. En
+administrateur — c'est la seule opération qui l'exige, la gateway ne connaît
+que les rôles.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ import sqlglot
 from psycopg import sql as pgsql
 from sqlglot import exp
 
-from scripts._pg import connect, env_libpq
+from scripts._pg import cible, connect
 from sql.db import db_path
 from sql.schema import SCHEMA_PATH
 
@@ -128,8 +128,8 @@ def main() -> int:
         print(f"{db_path()} absente — lancer `make seed` d'abord.", file=sys.stderr)
         return 1
 
-    cible = env_libpq()
-    print(f"Migration vers {cible['PGDATABASE']} sur {cible['PGHOST']}…")
+    base, hote = cible()
+    print(f"Migration vers {base} sur {hote}…")
 
     with sqlite3.connect(f"file:{db_path()}?mode=ro", uri=True) as lite, connect() as pg:
         tables = _cree_les_tables(pg)

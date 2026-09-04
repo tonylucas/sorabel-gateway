@@ -21,11 +21,18 @@ from scripts.roles import nom_du_role  # noqa: E402
 
 
 def _connexion(profil: str):
+    """Une connexion sous le rôle du profil : l'adresse de `DATABASE_URL`, son
+    identité à lui. C'est ainsi que la gateway ouvrira ses pools."""
     mot_de_passe = os.environ.get(f"PG_{profil.upper()}")
-    if not mot_de_passe or not os.environ.get("PGHOST"):
+    url = os.environ.get("DATABASE_URL")
+    if not mot_de_passe or not url:
         pytest.skip(f"pas de PostgreSQL de test pour le profil {profil}")
     try:
-        return psycopg.connect(user=nom_du_role(profil), password=mot_de_passe)
+        return psycopg.connect(
+            psycopg.conninfo.make_conninfo(
+                url, user=nom_du_role(profil), password=mot_de_passe
+            )
+        )
     except psycopg.OperationalError as exc:
         pytest.skip(f"PostgreSQL injoignable : {exc}")
 
