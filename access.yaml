@@ -8,9 +8,15 @@
 # Un tool ou une collection inconnus font échouer le chargement au démarrage —
 # une faute de frappe dans ce fichier ouvre ou ferme un accès en silence.
 #
-# Étape 6 : le bloc `sql` de chaque profil deviendra la lecture des GRANT
-# PostgreSQL (`has_column_privilege`), pour que le garde voie exactement ce que
-# la base applique. La signature de `sql_scope()` ne bougera pas.
+# Le bloc `sql` de chaque profil est une **intention**, pas un état : c'est
+# `scripts/roles.py` qui le traduit en `GRANT SELECT` colonne par colonne, et le
+# garde lit ensuite les GRANT (`has_column_privilege`), jamais ce fichier. Amender
+# le périmètre SQL ici demande donc de rejouer `make roles` pour qu'il s'applique.
+#
+# Les deux autres dimensions — tools et collections — n'ont pas d'équivalent en
+# base : elles se lisent ici, au démarrage.
+#
+# `tests/test_roles.py` compare les deux lectures et échoue si elles s'écartent.
 
 profils:
 

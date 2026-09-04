@@ -145,10 +145,37 @@ def collections(profile: str) -> frozenset[str]:
     return _perimetre(profile).collections
 
 
-def sql_scope(profile: str) -> tuple[frozenset[str], frozenset[str]]:
-    """Tables autorisées et colonnes interdites (`table.colonne`) du profil."""
+def sql_declare(profile: str) -> tuple[frozenset[str], frozenset[str]]:
+    """Ce que la matrice **déclare** : le bloc `sql` d'`access.yaml`.
+
+    Une intention, pas un état. `scripts/roles.py` la traduit en `GRANT` ; c'est
+    le seul appelant, et c'est ce qui fait du YAML le document qu'on amende.
+    """
     p = _perimetre(profile)
     return p.sql_tables, p.sql_colonnes_interdites
+
+
+def sql_scope(profile: str) -> tuple[frozenset[str], frozenset[str]]:
+    """Ce que la base **applique** : les `GRANT SELECT` du rôle du profil.
+
+    Le garde ne peut plus diverger de la base, puisqu'il lui demande. Un `GRANT`
+    élargi à la main hors d'`access.yaml` élargit le garde du même mouvement —
+    et c'est la propriété qu'on veut : la barrière 2 décrit la barrière 1, elle
+    ne la double pas de mémoire.
+
+    Un profil hors matrice repart les mains vides **sans toucher à la base** :
+    il n'a pas de rôle, donc ouvrir un pool à son nom échouerait — et la seule
+    réponse juste est de toute façon « rien ».
+
+    L'import est différé pour la même raison que dans `gateway.tools` : `sql.db`
+    a besoin du profil courant, déclaré ici. Le faire au chargement bouclerait.
+    """
+    if profile not in matrice():
+        return frozenset(), frozenset()
+
+    from sql.schema import perimetre
+
+    return perimetre(profile)
 
 
 # ── Enveloppe du contrat d'intégration ───────────────────────────────────────

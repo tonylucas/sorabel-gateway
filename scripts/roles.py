@@ -21,7 +21,7 @@ from __future__ import annotations
 import psycopg
 from psycopg import sql as pgsql
 
-from gateway.access import matrice, sql_scope
+from gateway.access import matrice, sql_declare
 from scripts._pg import cible, connect
 from sql.reglages import reglage
 
@@ -117,7 +117,7 @@ def _perimetre(pg: psycopg.Connection, role: str, base: str, profil: str) -> lis
         )
     )
 
-    autorisees, interdites = sql_scope(profil)
+    autorisees, interdites = sql_declare(profil)
     resume = []
     for table, toutes in _colonnes(pg).items():
         if table not in autorisees:
