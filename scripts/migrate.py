@@ -19,9 +19,11 @@ que les rôles.
 
 from __future__ import annotations
 
+import os
 import re
 import sqlite3
 import sys
+from pathlib import Path
 
 import psycopg
 import sqlglot
@@ -29,11 +31,15 @@ from psycopg import sql as pgsql
 from sqlglot import exp
 
 from scripts._pg import cible, connect
-from sql.db import db_path
 from sql.schema import SCHEMA_PATH
 
-#: Le dialecte cible. `sql.schema.DIALECT` reste sur SQLite tant que la gateway
-#: n'a pas basculé : c'est la PR suivante, pas celle-ci.
+#: La SQLite de référence, source de la migration. `sql/db.py` ne la connaît
+#: plus : depuis la bascule, la gateway ne parle qu'à PostgreSQL.
+SQLITE_PATH = Path(os.environ.get("SORABEL_DB") or Path(__file__).resolve().parent.parent
+                   / "data" / "sorabel.db")
+
+#: Le dialecte cible. `sql.schema.DIALECT_SOURCE` dit l'autre bout : `docs/schema.sql`
+#: reste écrit en SQLite, puisqu'il sert aussi `scripts/seed.py`.
 DIALECTE_CIBLE = "postgres"
 
 #: `produits : le catalogue Sorabel (…)` — la ligne de commentaire qui décrit la
@@ -124,14 +130,14 @@ def _copie(pg: psycopg.Connection, lite: sqlite3.Connection, table: str) -> int:
 
 
 def main() -> int:
-    if not db_path().exists():
-        print(f"{db_path()} absente — lancer `make seed` d'abord.", file=sys.stderr)
+    if not SQLITE_PATH.exists():
+        print(f"{SQLITE_PATH} absente — lancer `make seed` d'abord.", file=sys.stderr)
         return 1
 
     base, hote = cible()
     print(f"Migration vers {base} sur {hote}…")
 
-    with sqlite3.connect(f"file:{db_path()}?mode=ro", uri=True) as lite, connect() as pg:
+    with sqlite3.connect(f"file:{SQLITE_PATH}?mode=ro", uri=True) as lite, connect() as pg:
         tables = _cree_les_tables(pg)
         for table in tables:
             print(f"  {table:<12} {_copie(pg, lite, table):>6} lignes")

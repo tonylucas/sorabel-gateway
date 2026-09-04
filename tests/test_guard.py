@@ -8,12 +8,13 @@ quel code, et pourquoi.
 from __future__ import annotations
 
 import json
-import sqlite3
 
 import pytest
 
+import psycopg
+
 from gateway.access import set_profile
-from sql.db import db_path
+from sql import db
 from sql.generate import EXEMPLES, consignes, prompt
 from sql.guard import LIMIT_DEFAUT, Refus, valide
 
@@ -68,19 +69,18 @@ def test_etoile_expansee_sur_les_colonnes_du_profil():
 
 
 def test_la_connexion_refuse_l_ecriture():
-    # Barrière 1 : même sans garde, la connexion ne peut pas écrire.
-    from sql.db import connect
-
-    with pytest.raises(sqlite3.Error), connect() as con:
-        con.execute("DELETE FROM commandes")
+    # Barrière 1 : même sans garde, le rôle du profil ne peut pas écrire.
+    # `tests/test_roles.py` le vérifie sur une connexion nue ; ici on passe par
+    # le pool, qui est le seul chemin qu'emprunte la gateway.
+    with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
+        db.run("DELETE FROM commandes", profile="commercial")
 
 
 def test_les_exemples_du_prompt_sont_executables():
     # Un exemple montré doit être un exemple valide : sinon on enseigne au
     # modèle du SQL que le garde refusera.
-    with sqlite3.connect(f"file:{db_path()}?mode=ro", uri=True) as con:
-        for _, sql in EXEMPLES:
-            con.execute(sql).fetchone()
+    for _, sql in EXEMPLES:
+        db.run(sql, profile="commercial")
 
 
 @pytest.mark.parametrize("interdit", ["marge_pct", "marge_ht", "prix_achat_ht", "ventes"])
@@ -104,8 +104,8 @@ def test_check_stock_et_order_status_sans_llm():
     assert stock["status"] == "ok"
     assert stock["payload"]["total"] == sum(e["quantite"] for e in stock["payload"]["entrepots"])
 
-    with sqlite3.connect(f"file:{db_path()}?mode=ro", uri=True) as con:
-        commande = con.execute("SELECT id FROM commandes LIMIT 1").fetchone()[0]
+    _, lignes = db.run("SELECT id FROM commandes LIMIT 1", profile="support")
+    commande = lignes[0][0]
 
     etat = json.loads(tools.order_status(order_id=commande))
     assert etat["status"] == "ok"

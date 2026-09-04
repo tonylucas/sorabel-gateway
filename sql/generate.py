@@ -87,7 +87,7 @@ EXEMPLES: tuple[tuple[str, str], ...] = (
     (
         "prix de vente HT du disjoncteur tétrapolaire 40 A",
         "SELECT ref, nom, prix_vente_ht FROM produits "
-        "WHERE nom LIKE '%tétrapolaire%' AND nom LIKE '%40 A%'",
+        "WHERE nom ILIKE '%tétrapolaire%' AND nom ILIKE '%40 A%'",
     ),
     (
         # Le seul pattern que le schéma commenté n'enseigne pas tout seul : une
@@ -142,7 +142,7 @@ REGLES: tuple[tuple[tuple[str, ...], str], ...] = (
         f"- Les données couvrent {PERIODE[0]} à {PERIODE[1]}. Une question sans année\n"
         "  désigne l'occurrence la plus récente : « en avril » = avril 2026.\n"
         "- Un libellé produit n'est jamais cité exactement : filtrer par fragments avec\n"
-        "  `LIKE '%…%'`.",
+        "  `ILIKE '%…%'` — `LIKE` est sensible à la casse sur PostgreSQL.",
     ),
 )
 
@@ -165,13 +165,13 @@ Décision, à rendre dans le champ `decision` — les tester dans cet ordre :
    `hors_schema`, pas `ambigue` ; et une question qui nomme déjà sa grandeur
    (« montant », « quantité », « nombre de… ») n'est pas ambiguë,
    même si le classement pourrait se faire autrement.
-4. `sql` — sinon. Remplir `sql` avec une requête SQLite de lecture, seule.
+4. `sql` — sinon. Remplir `sql` avec une requête PostgreSQL de lecture, seule.
 
 Ne rien commenter, ne rien expliquer hors du JSON.\
 """
 
 EN_TETE = """\
-Tu traduis une question métier en français en **une** requête SQLite de lecture.
+Tu traduis une question métier en français en **une** requête PostgreSQL de lecture.
 
 Règles de lecture du schéma, dans l'ordre où elles font échouer les réponses :
 """
