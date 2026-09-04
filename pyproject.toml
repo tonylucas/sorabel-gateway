@@ -16,6 +16,7 @@ dependencies = [
     "sqlglot>=25,<30",
     "google-genai>=1.0,<2",
     "pyyaml>=6,<7",
+    "psycopg[binary]>=3.3.5",
 ]
 
 [dependency-groups]
@@ -53,3 +54,10 @@ exclude = ["tests/acceptance/*", "tests/conftest.py", "scripts/seed.py"]
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
+
+# `scripts/seed.py` est fourni et fait référence : il génère la base sur
+# laquelle `tests/conftest.py` calcule ses attendus. Ruff ne le reformate déjà
+# plus ; mypy ne l'annote pas davantage, pour la même raison.
+[[tool.mypy.overrides]]
+module = "scripts.seed"
+ignore_errors = true
