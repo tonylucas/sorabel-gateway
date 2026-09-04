@@ -15,7 +15,7 @@ local et jamais écrits dans le dépôt.
 | Accès public | activé ; pare-feu : IP du poste + services Azure |
 | Base voisine | `velmo` — **sur le même serveur**, d'où le `REVOKE CONNECT` de `roles.sql` |
 | Projet d'infrastructure | `projet-perso-f22c7` (« Sorabel »), facturation activée |
-| Projet de la clé Gemini | `sorabel-bot-app`, **sans facturation** — à créer (§ 1.1) |
+| Projet de la clé Gemini | `api-projet-perso`, **sans facturation** |
 | Région retenue | **`europe-north1`** (Finlande) — la région Cloud Run la plus proche de Sweden Central |
 
 ## Pourquoi deux projets Google Cloud
@@ -29,19 +29,38 @@ Les deux contraintes ne tiennent pas dans un projet. On en garde donc deux :
 
 | Projet | Facturation | Porte |
 |---|---|---|
-| `sorabel-bot-app` | **non** | la clé API Gemini, et rien d'autre |
+| `api-projet-perso` | **non** | la clé API Gemini, et rien d'autre |
 | `projet-perso-f22c7` | oui | Cloud Run, Artifact Registry, réseau, secrets |
 
 Une clé API Gemini est un identifiant portable : le service déployé dans le
-projet facturé la présente et est servi sur le quota free tier de
-`sorabel-bot-app`. Rien à changer dans le code, seule la **valeur** de
+projet facturé la présente et est servi sur le quota free tier
+d'`api-projet-perso`. Rien à changer dans le code, seule la **valeur** de
 `GOOGLE_API_KEY` change.
 
-> **À vérifier avant de déployer** : *Facturation → Crédits*. Le solde du compte
-> `018EF2-F0B44E-ED34CB` doit être positif et couvrir Cloud Run, Compute et
-> Artifact Registry. Un crédit à portée restreinte peut financer certains
-> services et pas d'autres ; c'est ce qui a fait échouer les appels Gemini alors
-> que le compte était réputé approvisionné.
+## Le budget, et ce qu'il impose
+
+Un seul crédit est actif sur le compte `018EF2-F0B44E-ED34CB` : le bonus
+mensuel du Google Developer Program, **8,59 € par mois**, de portée « all of
+Google Cloud Platform ». Le crédit *Free Trial* affiche encore 263,69 € mais il
+a expiré le 2025-08-15 : il n'est pas mobilisable.
+
+Deux postes dépassent ce plafond à eux seuls s'ils tournent au mois :
+
+| Poste | Ordre de grandeur | Décision |
+|---|---|---|
+| Cloud NAT | ~1 €/jour, soit le crédit en 8 jours | créé la veille de la soutenance, supprimé après |
+| `--min-instances 1` | une instance allumée en permanence | mis à `1` le jour même, remis à `0` ensuite |
+| Adresse IP réservée | quelques centimes par jour | gardée : elle survit à la suppression du NAT et évite de retoucher le pare-feu Azure |
+
+Le reste — Artifact Registry, Cloud Logging, Cloud Run au repos — tient
+largement dans le crédit.
+
+> Si cette fenêtre courte est trop contraignante, l'alternative n'est pas un
+> réglage mais un déplacement : **Azure Container Apps**, dans l'abonnement qui
+> porte déjà `tony-velmo`. Le service et la base sont alors dans le même cloud,
+> ce qui supprime le VPC, le NAT, l'IP réservée et la règle de pare-feu — soit
+> le poste de coût principal et le risque de mise en ligne que le plan désignait
+> comme le plus élevé. Les PR 1 à 4 sont les mêmes dans les deux cas.
 
 ---
 
@@ -52,11 +71,13 @@ Tout ce qui suit se fait sur <https://console.cloud.google.com>, projet
 
 ### 1.1 Le projet de la clé Gemini
 
-*Sélecteur de projet → Nouveau projet* → nom `sorabel-bot-app`, **sans lui
-associer de compte de facturation**. Puis, sur
-<https://aistudio.google.com/apikey>, *Créer une clé API* **dans ce projet** :
-c'est son appartenance à un projet non facturé, et rien d'autre, qui lui vaut
-le free tier.
+Le projet `api-projet-perso` existe déjà et n'a **pas** de compte de
+facturation associé : c'est cela, et rien d'autre, qui vaut le free tier à une
+clé. Ne pas lui en associer un.
+
+*API et services → Activer des API et des services* → **Generative Language
+API**. Puis, sur <https://aistudio.google.com/apikey>, *Créer une clé API*
+**dans ce projet**.
 
 La nouvelle valeur remplace `GOOGLE_API_KEY` dans `.env` et dans `ui/.env`, et
 c'est elle qu'on met en secret à l'étape 1.6.
