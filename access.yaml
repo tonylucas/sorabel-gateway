@@ -1,0 +1,68 @@
+# Matrice d'accès de la Sorabel Data Gateway — source de vérité unique.
+#
+# Trois dimensions par profil : les tools appelables, les collections
+# documentaires visibles, et le périmètre SQL (tables, colonnes interdites).
+# Elle se lit et se modifie sans toucher au code : c'est un document de
+# gouvernance, relu par la DSI, pas une constante d'implémentation.
+#
+# Un tool ou une collection inconnus font échouer le chargement au démarrage —
+# une faute de frappe dans ce fichier ouvre ou ferme un accès en silence.
+#
+# Étape 6 : le bloc `sql` de chaque profil deviendra la lecture des GRANT
+# PostgreSQL (`has_column_privilege`), pour que le garde voie exactement ce que
+# la base applique. La signature de `sql_scope()` ne bougera pas.
+
+profils:
+
+  # Bot Slack du support. Ne voit ni marges ni prix d'achat (jeu d'éval,
+  # SQL-17 à SQL-20), ni les notes internes — le corpus y place des
+  # négociations fournisseurs et des alertes qualité qu'un bot support ne doit
+  # pas ressortir à un client.
+  support:
+    tools:
+      - answer_question
+      - search_docs
+      - get_document
+      - list_sources
+      - ask_database
+      - check_stock
+      - order_status
+    collections: [fiche_technique, notice, procedure_sav]
+    sql:
+      # `ventes` est fermée en entier : chacune de ses lignes porte `marge_ht`,
+      # la garder amputée n'aurait aucun intérêt métier.
+      tables: [produits, stocks, commandes, clients]
+      colonnes_interdites: [produits.prix_achat_ht, produits.marge_pct]
+
+  # Poste commercial. Accès complet, marges comprises.
+  commercial:
+    tools:
+      - answer_question
+      - search_docs
+      - get_document
+      - list_sources
+      - ask_database
+      - get_schema
+      - check_stock
+      - order_status
+    collections: [fiche_technique, notice, procedure_sav, note_interne]
+    sql:
+      tables: [produits, stocks, commandes, clients, ventes]
+      colonnes_interdites: []
+
+  # Profil technique de l'IDE. Sans restriction : il lit le schéma et la
+  # documentation, il ne parle pas à des clients.
+  dev:
+    tools:
+      - answer_question
+      - search_docs
+      - get_document
+      - list_sources
+      - ask_database
+      - get_schema
+      - check_stock
+      - order_status
+    collections: [fiche_technique, notice, procedure_sav, note_interne]
+    sql:
+      tables: [produits, stocks, commandes, clients, ventes]
+      colonnes_interdites: []

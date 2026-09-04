@@ -171,17 +171,58 @@ par projet, et rend des `504` sporadiques. `make eval-sql` cadence ses appels et
 compte les incidents à part ; la CI relève `GATEWAY_TEST_TIMEOUT` à 60 s. Un
 projet facturé ou Vertex AI supprime les deux.
 
-## 5 · Matrice d'accès et gouvernance
+## 5 · Matrice d'accès et gouvernance — **fait**
 
-- `access.yaml` — profils × tools × collections × tables/colonnes
-- `roles.sql` — un rôle PostgreSQL par profil, `GRANT SELECT` colonne par colonne
-- `@tool_access` posé sur les 8 fonctions — même un appel Python direct y passe
-- `tools/list` **filtré par profil**
-- pools : un par rôle, `min=1 max=3`, test de connexion avant emprunt
-- sélecteur de profil dans le bot
+- `access.yaml` — profils × tools × collections × tables/colonnes, à la racine :
+  un document de gouvernance, relu et amendé sans toucher au code.
+  `gateway/access.py` en est la **seule** lecture (`can`, `tools_of`,
+  `collections`, `sql_scope`) ; aucun tool n'ouvre le fichier.
+- **validé au chargement** — un tool, une collection ou une colonne interdite
+  mal orthographiés arrêtent le démarrage. C'est la frontière de confiance de
+  l'autorisation : `note_intern` au lieu de `note_interne`, et le filtre ne
+  correspond plus à rien, donc le support hérite des notes internes. Une faute
+  y coûte un démarrage, pas une fuite.
+- `tools/list` **filtré par profil** (`mcp_server/app.py`) — le support annonce
+  7 tools, le commercial 8.
+- `mcp_server/profile.py` lit désormais les profils connus dans la matrice : un
+  profil ajouté au YAML est accepté par le résolveur sans retouche, et celui-ci
+  ne peut pas en connaître un que la matrice ignore.
+- **Un profil inconnu n'a droit à rien** — le repli sur `support` se joue à la
+  résolution du profil, pas dans le périmètre : hériter des droits du support
+  serait une élévation de privilège silencieuse.
+- `@tool_access` posé sur les 8 fonctions — **déjà en place depuis l'étape 2**.
+- sélecteur de profil dans le bot — **déjà en place depuis l'étape 1**.
+- `scripts/mcp_client.py --compare` (`make demo`) — le même appel joué en
+  support puis en commercial, catalogue annoncé compris.
 
-**Vérification** : `test_mcp.py` au vert, `make test` entièrement vert.
-`scripts/mcp_client.py` démontre support vs commercial côte à côte.
+**Le filtrage porte sur la découverte, pas sur l'exécution.** Les huit fonctions
+restent enregistrées : un appel hors matrice doit revenir en refus métier
+(`{status: refused}`, journalisé, explicable par le host), pas en erreur de
+protocole « unknown tool » — que le journal ne verrait pas passer et qu'un host
+lirait comme une panne. C'est aussi ce qu'exige `test_matrice_d_acces_respectee`,
+qui appelle les tools hors matrice et attend une enveloppe. Le prix est un
+`WARNING` du SDK à chaque appel filtré (« tool not listed, no validation ») :
+sans conséquence, nos tools rendant du texte.
+
+**`roles.sql` et les pools par rôle partent à l'étape 6**, avec la bascule
+PostgreSQL. Les installer ici — psycopg, un Postgres local, `migrate.py` — pour
+que `has_column_privilege` renvoie exactement ce que le YAML dit déjà serait du
+travail à double : la CI n'a pas de service Postgres et `conftest.py` calcule
+ses attendus sur `data/sorabel.db`. Le seul gain, un garde qui ne peut pas
+diverger de la base, n'existe que le jour où il y a une base à faire diverger.
+`sql_scope()` gardera sa signature.
+
+**Vérification** : `make test` entièrement vert — **70 tests**, dont 9 neufs sur
+le chargement de la matrice, sa validation et le catalogue filtré.
+`make demo` montre les deux profils côte à côte :
+
+```
+support     7 tools annoncés : answer_question, ask_database, check_stock, …
+            → refused · unauthorized_tool
+              Ce profil n'a pas accès à cet outil. …
+commercial  8 tools annoncés : answer_question, ask_database, check_stock, get_schema, …
+            → ok
+```
 
 ---
 
@@ -191,6 +232,14 @@ projet facturé ou Vertex AI supprime les deux.
   existant**, base dédiée. `roles.sql` doit inclure un
   `REVOKE CONNECT ON DATABASE <autre_base>` par rôle — les rôles sont au niveau
   du serveur, pas de la base.
+- **`roles.sql` et les pools par rôle** (reportés de l'étape 5) : un rôle par
+  profil, `GRANT SELECT` colonne par colonne, `default_transaction_read_only` ;
+  un pool par rôle, `min=1 max=3`, test de connexion avant emprunt (Cloud Run
+  endort les instances, Azure coupe les connexions inactives). `sql_scope()`
+  lira alors `has_column_privilege` au lieu du bloc `sql` d'`access.yaml` — sa
+  signature ne bouge pas, seule sa source change.
+- **Plafond de coût `EXPLAIN`** : possible seulement ici, SQLite n'estime pas de
+  coût.
 - Chroma : index construit au `docker build` et **embarqué dans l'image**
   (Cloud Run est sans état).
 - Journal : doublé sur `stdout` → Cloud Logging.
@@ -213,8 +262,10 @@ projet facturé ou Vertex AI supprime les deux.
   d'éval, pas à choisir d'avance.
 - **Plafond de coût SQL** — sans objet sur SQLite, qui n'estime pas de coût. À
   régler à l'étape 6, sur PostgreSQL.
-- **`get_schema` pour `commercial`** — le `conftest.py` fourni l'accorde aux
-  deux profils ; le dossier de conception le réservait au `dev`. La suite
-  d'acceptance fait foi, la matrice suit — à trancher dans le dossier.
-- **Profil `dev`** — prévu par la conception, absent des tests fournis. À ajouter
-  seulement s'il sert la démo.
+- **`get_schema` pour `commercial`** — tranché en faveur du `conftest.py`
+  fourni, qui l'accorde aux deux profils ; le dossier de conception le
+  réservait au `dev`. La suite d'acceptance fait foi, `access.yaml` la suit —
+  reste à répercuter dans le dossier de conception.
+- **Profil `dev`** — gardé : il est dans `access.yaml` comme les deux autres,
+  aucun test ne le couvre, et il ne coûte rien. La démonstration de la matrice
+  se joue sur `support` vs `commercial`.

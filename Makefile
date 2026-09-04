@@ -1,4 +1,4 @@
-.PHONY: install up down seed ingest eval eval-sql test fmt lint serve serve-http client journal ui ui-fmt ui-install ui-clean
+.PHONY: install up down seed ingest eval eval-sql test fmt lint serve serve-http client demo journal ui ui-fmt ui-install ui-clean
 
 install:
 	uv sync
@@ -58,6 +58,14 @@ ui:
 
 client:
 	uv run python scripts/mcp_client.py --profile $${PROFILE:-support}
+
+# La matrice en une commande : le même appel joué en support puis en commercial,
+# catalogue annoncé compris. `make demo TOOL=ask_database ARGS='{"question": "…"}'`
+# montre le refus de colonne ; sans argument, le refus de tool.
+TOOL ?= get_schema
+ARGS ?= {}
+demo:
+	uv run python scripts/mcp_client.py --compare --tool $(TOOL) --args '$(ARGS)'
 
 journal:
 	@tail -n 20 logs/journal.jsonl 2>/dev/null || echo "journal vide"

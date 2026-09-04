@@ -14,8 +14,9 @@ En place et fourni : le corpus (`data/corpus/`, ~400 documents), `docs/schema.sq
 `questions_sql.jsonl`, `scripts/mcp_client.py`, le `Makefile`, `docker-compose.yml`.
 
 Construit : `mcp_server/` (deux canaux), `gateway/` (matrice, journal, les 8
-tools), `ingest/`, `retrieval/`, `sql/`, `ui/` (app bot). Reste l'étape 5
-(externalisation de la matrice, rôles PostgreSQL) et l'étape 6 (déploiement).
+tools), `ingest/`, `retrieval/`, `sql/`, `ui/` (app bot), et `access.yaml` — la
+matrice, hors du code. Reste l'étape 6 : bascule PostgreSQL (rôles et `GRANT`
+colonne par colonne, pools par rôle) et déploiement.
 
 `ROADMAP.md` donne l'ordre des chantiers et l'état de chacun.
 

@@ -21,6 +21,7 @@ from gateway.access import (
     tool_access,
 )
 
+
 def _perimetre() -> frozenset[str]:
     """Types de documents visibles par le profil courant — filtre appliqué au retrieval."""
     return collections(current_profile())

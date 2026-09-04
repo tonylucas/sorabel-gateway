@@ -10,12 +10,15 @@ from __future__ import annotations
 
 import os
 
+from gateway.access import DEFAULT_PROFILE, profiles
+
 PROFILE_HEADER = "x-sorabel-profile"
-PROFILES = ("support", "commercial", "dev")
-DEFAULT_PROFILE = "support"
 
 
 def resolve_profile(headers: dict[str, str] | None = None) -> str:
+    """Les profils connus viennent d'`access.yaml` : un profil ajouté à la matrice
+    est accepté ici sans retouche, et le résolveur ne peut pas en connaître un
+    que la matrice ignore."""
     declared = (headers or {}).get(PROFILE_HEADER) or os.environ.get("SORABEL_PROFILE")
     declared = (declared or "").strip().lower()
-    return declared if declared in PROFILES else DEFAULT_PROFILE
+    return declared if declared in profiles() else DEFAULT_PROFILE
