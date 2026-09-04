@@ -8,15 +8,20 @@ touchant une table interdite serait déjà une interrogation de trop.
 2. tables et colonnes dans le périmètre       → `forbidden_column`
 3. `LIMIT` injecté s'il manque, puis `EXPLAIN`
 
+Sur PostgreSQL, `EXPLAIN` planifie sans lire : il rejette donc aussi une
+colonne que le rôle du profil n'a pas le droit de lire. C'est la barrière 1
+qui répond à la place de la 2 — les deux disent la même chose, puisque les
+`GRANT` et le périmètre sortent du même `access.yaml`.
+
 Le message de refus ne nomme jamais ce qu'il protège : dire « la colonne
 `marge_ht` est interdite » apprend au demandeur la colonne qu'on lui cache.
 """
 
 from __future__ import annotations
 
-import sqlite3
 from typing import cast
 
+import psycopg
 import sqlglot
 from sqlglot import exp
 from sqlglot.errors import OptimizeError, ParseError
@@ -33,8 +38,15 @@ LIMIT_DEFAUT = 200
 #: modélise pas (PRAGMA, ATTACH, VACUUM…) — les refuser en bloc est plus sûr que
 #: les énumérer.
 ECRITURES = (
-    exp.Insert, exp.Update, exp.Delete, exp.Drop, exp.Create, exp.Alter,
-    exp.TruncateTable, exp.Command, exp.Into,
+    exp.Insert,
+    exp.Update,
+    exp.Delete,
+    exp.Drop,
+    exp.Create,
+    exp.Alter,
+    exp.TruncateTable,
+    exp.Command,
+    exp.Into,
 )
 
 
@@ -58,12 +70,9 @@ REFUS_ECRITURE = (
     "modification n'est exécutée, même formulée autrement."
 )
 REFUS_PERIMETRE = (
-    "Ce profil n'a pas accès aux informations nécessaires pour répondre à "
-    "cette question."
+    "Ce profil n'a pas accès aux informations nécessaires pour répondre à cette question."
 )
-REFUS_SCHEMA = (
-    "Cette question porte sur des données que la base Sorabel ne contient pas."
-)
+REFUS_SCHEMA = "Cette question porte sur des données que la base Sorabel ne contient pas."
 
 
 def valide(sql: str, profile: str) -> str:
@@ -107,8 +116,16 @@ def valide(sql: str, profile: str) -> str:
     final = resolue.sql(dialect=DIALECT)
 
     try:
-        db.explain(final)
-    except sqlite3.Error as exc:
+        # Sous le rôle du profil **validé**, pas celui du contexte : `valide()`
+        # reçoit son profil en argument, et le filtrage des exemples du prompt
+        # l'appelle pour un profil qui n'est pas l'appelant.
+        db.explain(final, profile)
+    except psycopg.errors.InsufficientPrivilege as exc:
+        # La barrière 1 a tranché avant la lecture. Son message nomme la table
+        # protégée (« permission denied for table produits ») : il reste au
+        # journal, le client reçoit le refus de périmètre habituel.
+        raise Refus("forbidden_column", REFUS_PERIMETRE) from exc
+    except psycopg.Error as exc:
         raise Refus("invalid_sql", f"La requête produite est invalide : {exc}") from exc
     return final
 

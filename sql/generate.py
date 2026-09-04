@@ -12,33 +12,12 @@ l'autorise ou non. Une instruction de prompt n'est pas une barrière.
 from __future__ import annotations
 
 import json
-import os
 import sys
 from functools import lru_cache
-from pathlib import Path
-
-from dotenv import dotenv_values
 
 from sql.guard import Refus, valide
+from sql.reglages import reglage
 from sql.schema import ddl, sqlglot_schema
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
-
-@lru_cache(maxsize=1)
-def _fichier_env() -> dict[str, str | None]:
-    return dotenv_values(REPO_ROOT / ".env")
-
-
-def reglage(nom: str, defaut: str = "") -> str:
-    """L'environnement d'abord, `.env` en repli — sans injecter le fichier entier.
-
-    `load_dotenv()` pousserait tout `.env` dans `os.environ` et rendrait actives
-    des variables que d'autres modules lisent (`EMBEDDING_MODEL`, `CHROMA_URL`,
-    `SORABEL_PROFILE`) : on changerait le comportement de code qui ne demande
-    rien. Ici on ne lit que les deux réglages du générateur.
-    """
-    return os.environ.get(nom) or _fichier_env().get(nom) or defaut
 
 
 #: `flash-lite` suffit : le schéma tient en une page et la tâche est cadrée.
@@ -263,7 +242,7 @@ def genere(question: str, profile: str) -> str:
                 response_json_schema=REPONSE,
                 # Le schéma tient en une page et la tâche est cadrée par huit
                 # exemples : le raisonnement coûterait des secondes sans rien ajouter.
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
+                thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel.MINIMAL),
             ),
         )
     except errors.APIError as exc:
