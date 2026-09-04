@@ -13,3 +13,28 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
+
+  # Le PostgreSQL de développement. Même version majeure que le serveur Azure
+  # (`tony-velmo`, PG 18) : un dialecte qui passe ici doit passer là-bas.
+  postgres:
+    image: postgres:18
+    ports:
+      - "8003:5432"
+    environment:
+      - POSTGRES_USER=sorabel
+      - POSTGRES_PASSWORD=sorabel
+      - POSTGRES_DB=sorabel
+    volumes:
+      # Volume nommé et non montage lié : depuis PG 18, l'image range les données
+      # dans un sous-dossier par version majeure qu'elle crée elle-même, et un
+      # dossier de l'hôte lui arrive avec le mauvais propriétaire (`data directory
+      # has wrong ownership`). Chroma, qui écrit à plat, s'en accommode.
+      - sorabel-pg:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sorabel"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  sorabel-pg:
