@@ -1,10 +1,19 @@
-.PHONY: install up down seed ingest eval eval-sql test fmt lint serve serve-http client demo journal ui ui-fmt ui-install ui-clean
+.PHONY: install up down seed migrate roles ingest eval eval-sql test fmt lint serve serve-http client demo journal ui ui-fmt ui-install ui-clean
 
 install:
 	uv sync
 
 seed:
 	uv run python scripts/seed.py
+
+# Structure, commentaires et données : SQLite de référence → PostgreSQL.
+# `make seed` d'abord — la SQLite reste la source.
+migrate:
+	uv run python -m scripts.migrate
+
+# Un rôle par profil, GRANT SELECT colonne par colonne, dérivés d'access.yaml.
+roles:
+	uv run python -m scripts.roles
 
 ingest:
 	uv run python -m ingest.index
@@ -33,7 +42,7 @@ fmt:
 
 lint:
 	uv run ruff check .
-	uv run mypy ingest retrieval sql gateway mcp_server eval
+	uv run mypy ingest retrieval sql gateway mcp_server scripts eval
 
 serve:
 	uv run python -m mcp_server.server

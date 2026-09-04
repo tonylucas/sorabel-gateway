@@ -8,6 +8,36 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-latest
+
+    # `tests/test_roles.py` ouvre une vraie connexion par rôle : la barrière 1
+    # d'E3 ne se vérifie que dans une base. Même version majeure que le serveur
+    # Azure, pour qu'un dialecte qui passe ici passe là-bas.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: sorabel
+          POSTGRES_PASSWORD: sorabel
+          POSTGRES_DB: sorabel
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sorabel"
+          --health-interval 5s --health-timeout 3s --health-retries 12
+
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGDATABASE: sorabel
+      PGUSER: sorabel
+      PGPASSWORD: sorabel
+      # Mots de passe des rôles : la CI part d'une base neuve à chaque
+      # exécution, ils n'ont rien à protéger.
+      PG_SUPPORT: ci_support
+      PG_COMMERCIAL: ci_commercial
+      PG_DEV: ci_dev
+      PG_CATALOG: ci_catalog
+
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -17,6 +47,10 @@ jobs:
         run: uv sync
       - name: Seed
         run: uv run python scripts/seed.py
+      - name: Migrate
+        run: uv run python -m scripts.migrate
+      - name: Roles
+        run: uv run python -m scripts.roles
       - name: Ingest
         run: uv run python -m ingest.index
 
