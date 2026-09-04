@@ -23,7 +23,7 @@ from psycopg import sql as pgsql
 
 from gateway.access import matrice, sql_scope
 from scripts._pg import cible, connect
-from sql.generate import reglage
+from sql.reglages import reglage
 from sql.schema import columns
 
 #: Rôle technique du catalogue : il ne lit aucune donnée métier, seulement

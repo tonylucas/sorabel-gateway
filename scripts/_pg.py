@@ -11,7 +11,7 @@ from __future__ import annotations
 import psycopg
 from psycopg import conninfo
 
-from sql.generate import reglage
+from sql.reglages import reglage
 
 
 def database_url() -> str:

@@ -12,33 +12,12 @@ l'autorise ou non. Une instruction de prompt n'est pas une barrière.
 from __future__ import annotations
 
 import json
-import os
 import sys
 from functools import lru_cache
-from pathlib import Path
-
-from dotenv import dotenv_values
 
 from sql.guard import Refus, valide
+from sql.reglages import reglage
 from sql.schema import ddl, sqlglot_schema
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
-
-@lru_cache(maxsize=1)
-def _fichier_env() -> dict[str, str | None]:
-    return dotenv_values(REPO_ROOT / ".env")
-
-
-def reglage(nom: str, defaut: str = "") -> str:
-    """L'environnement d'abord, `.env` en repli — sans injecter le fichier entier.
-
-    `load_dotenv()` pousserait tout `.env` dans `os.environ` et rendrait actives
-    des variables que d'autres modules lisent (`EMBEDDING_MODEL`, `CHROMA_URL`,
-    `SORABEL_PROFILE`) : on changerait le comportement de code qui ne demande
-    rien. Ici on ne lit que les deux réglages du générateur.
-    """
-    return os.environ.get(nom) or _fichier_env().get(nom) or defaut
 
 
 #: `flash-lite` suffit : le schéma tient en une page et la tâche est cadrée.
@@ -87,7 +66,7 @@ EXEMPLES: tuple[tuple[str, str], ...] = (
     (
         "prix de vente HT du disjoncteur tétrapolaire 40 A",
         "SELECT ref, nom, prix_vente_ht FROM produits "
-        "WHERE nom ILIKE '%tétrapolaire%' AND nom ILIKE '%40 A%'",
+        "WHERE nom LIKE '%tétrapolaire%' AND nom LIKE '%40 A%'",
     ),
     (
         # Le seul pattern que le schéma commenté n'enseigne pas tout seul : une
@@ -142,7 +121,7 @@ REGLES: tuple[tuple[tuple[str, ...], str], ...] = (
         f"- Les données couvrent {PERIODE[0]} à {PERIODE[1]}. Une question sans année\n"
         "  désigne l'occurrence la plus récente : « en avril » = avril 2026.\n"
         "- Un libellé produit n'est jamais cité exactement : filtrer par fragments avec\n"
-        "  `ILIKE '%…%'` — `LIKE` est sensible à la casse sur PostgreSQL.",
+        "  `LIKE '%…%'`.",
     ),
 )
 
@@ -165,13 +144,13 @@ Décision, à rendre dans le champ `decision` — les tester dans cet ordre :
    `hors_schema`, pas `ambigue` ; et une question qui nomme déjà sa grandeur
    (« montant », « quantité », « nombre de… ») n'est pas ambiguë,
    même si le classement pourrait se faire autrement.
-4. `sql` — sinon. Remplir `sql` avec une requête PostgreSQL de lecture, seule.
+4. `sql` — sinon. Remplir `sql` avec une requête SQLite de lecture, seule.
 
 Ne rien commenter, ne rien expliquer hors du JSON.\
 """
 
 EN_TETE = """\
-Tu traduis une question métier en français en **une** requête PostgreSQL de lecture.
+Tu traduis une question métier en français en **une** requête SQLite de lecture.
 
 Règles de lecture du schéma, dans l'ordre où elles font échouer les réponses :
 """
@@ -263,7 +242,7 @@ def genere(question: str, profile: str) -> str:
                 response_json_schema=REPONSE,
                 # Le schéma tient en une page et la tâche est cadrée par huit
                 # exemples : le raisonnement coûterait des secondes sans rien ajouter.
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
+                thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel.MINIMAL),
             ),
         )
     except errors.APIError as exc:

@@ -20,7 +20,6 @@ après une pause échouerait sur une connexion morte.
 from __future__ import annotations
 
 import atexit
-import os
 from collections.abc import Sequence
 from typing import Any
 
@@ -28,6 +27,7 @@ import psycopg
 from psycopg_pool import ConnectionPool
 
 from gateway.access import current_profile
+from sql.reglages import reglage
 
 #: Plafond de lignes rendues, appliqué en plus du `LIMIT` injecté dans la requête.
 MAX_ROWS = 200
@@ -61,11 +61,14 @@ def conninfo(profile: str) -> str:
     Le mot de passe vient de l'environnement — d'un secret monté sur Cloud Run,
     du `.env` en local. Aucun identifiant de rôle n'est écrit dans le dépôt.
     """
-    url = os.environ.get("DATABASE_URL")
+    url = reglage("DATABASE_URL")
     if not url:
-        raise RuntimeError("DATABASE_URL absente : la gateway n'a pas de base à interroger.")
+        raise RuntimeError(
+            "DATABASE_URL absente : la gateway n'a pas de base à interroger. "
+            "La renseigner dans `.env` (cf. `.env.example`)."
+        )
     variable = f"PG_{profile.upper()}"
-    mot_de_passe = os.environ.get(variable)
+    mot_de_passe = reglage(variable)
     if not mot_de_passe:
         raise RuntimeError(
             f"{variable} absent : le profil {profile!r} n'a pas de mot de passe de rôle."

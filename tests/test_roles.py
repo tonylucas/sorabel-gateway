@@ -10,21 +10,20 @@ make roles` les active, la CI les joue à chaque exécution.
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 psycopg = pytest.importorskip("psycopg")
 
 from gateway.access import sql_scope  # noqa: E402
 from sql.db import conninfo  # noqa: E402
+from sql.reglages import reglage  # noqa: E402
 
 
 def _connexion(profil: str):
     """Une connexion sous le rôle du profil, construite **comme la gateway
     construit ses pools** : tester une autre connexion que la sienne ne
     prouverait rien."""
-    if not os.environ.get(f"PG_{profil.upper()}") or not os.environ.get("DATABASE_URL"):
+    if not reglage(f"PG_{profil.upper()}") or not reglage("DATABASE_URL"):
         pytest.skip(f"pas de PostgreSQL de test pour le profil {profil}")
     try:
         return psycopg.connect(conninfo(profil))
