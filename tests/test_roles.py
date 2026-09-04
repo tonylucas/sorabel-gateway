@@ -17,22 +17,17 @@ import pytest
 psycopg = pytest.importorskip("psycopg")
 
 from gateway.access import sql_scope  # noqa: E402
-from scripts.roles import nom_du_role  # noqa: E402
+from sql.db import conninfo  # noqa: E402
 
 
 def _connexion(profil: str):
-    """Une connexion sous le rôle du profil : l'adresse de `DATABASE_URL`, son
-    identité à lui. C'est ainsi que la gateway ouvrira ses pools."""
-    mot_de_passe = os.environ.get(f"PG_{profil.upper()}")
-    url = os.environ.get("DATABASE_URL")
-    if not mot_de_passe or not url:
+    """Une connexion sous le rôle du profil, construite **comme la gateway
+    construit ses pools** : tester une autre connexion que la sienne ne
+    prouverait rien."""
+    if not os.environ.get(f"PG_{profil.upper()}") or not os.environ.get("DATABASE_URL"):
         pytest.skip(f"pas de PostgreSQL de test pour le profil {profil}")
     try:
-        return psycopg.connect(
-            psycopg.conninfo.make_conninfo(
-                url, user=nom_du_role(profil), password=mot_de_passe
-            )
-        )
+        return psycopg.connect(conninfo(profil))
     except psycopg.OperationalError as exc:
         pytest.skip(f"PostgreSQL injoignable : {exc}")
 

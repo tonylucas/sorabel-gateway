@@ -23,9 +23,15 @@ from gateway.access import sql_scope
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCHEMA_PATH = REPO_ROOT / "docs" / "schema.sql"
 
-#: Dialecte de la base. Bascule PostgreSQL à l'étape 6 : le reste du module,
-#: le garde et les few-shots sont écrits pour ne dépendre que de cette constante.
-DIALECT = "sqlite"
+#: Dialecte de la base. Le reste du module, le garde et les few-shots ne
+#: dépendent que de cette constante — c'est ce qui a fait tenir la bascule
+#: PostgreSQL en une ligne ici.
+#:
+#: `docs/schema.sql` reste écrit en SQLite : c'est la source de `scripts/seed.py`
+#: et de `scripts/migrate.py`, qui le transpose. Il est donc lu en `sqlite`, et
+#: tout le reste raisonne en `postgres`.
+DIALECT = "postgres"
+DIALECT_SOURCE = "sqlite"
 
 #: `-- SENSIBLE : … — ne sort jamais pour le profil support`. Le filtrage par
 #: profil ayant déjà retiré la colonne à qui elle est interdite, l'annotation ne
@@ -48,7 +54,7 @@ def _text() -> str:
 def columns() -> dict[str, tuple[str, ...]]:
     """`{table: (colonne, …)}` — l'ossature, extraite par sqlglot."""
     out: dict[str, tuple[str, ...]] = {}
-    for statement in sqlglot.parse(_text(), read=DIALECT):
+    for statement in sqlglot.parse(_text(), read=DIALECT_SOURCE):
         if not isinstance(statement, exp.Create):
             continue
         table = statement.find(exp.Table)
@@ -83,8 +89,11 @@ def ddl(profile: str) -> str:
             continue  # l'en-tête du fichier
         if table not in autorisees:
             continue
-        blocs.append(_sans_colonnes(bloc, {c.split(".", 1)[1] for c in interdites
-                                           if c.startswith(f"{table}.")}))
+        blocs.append(
+            _sans_colonnes(
+                bloc, {c.split(".", 1)[1] for c in interdites if c.startswith(f"{table}.")}
+            )
+        )
     return _SENSIBLE.sub(r"\1", "\n".join(blocs)).strip()
 
 
@@ -92,8 +101,7 @@ def _sans_colonnes(bloc: str, noms: set[str]) -> str:
     """Retire les lignes de définition des colonnes citées, virgule finale recousue."""
     if not noms:
         return bloc
-    gardees = [ligne for ligne in bloc.splitlines()
-               if ligne.strip().split(" ")[0] not in noms]
+    gardees = [ligne for ligne in bloc.splitlines() if ligne.strip().split(" ")[0] not in noms]
     # La colonne retirée pouvait être la dernière : sans ce recousage, il reste
     # une virgule orpheline avant le `);` et le DDL n'est plus parsable.
     for i in range(len(gardees) - 1, -1, -1):

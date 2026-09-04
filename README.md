@@ -17,7 +17,8 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 
 - Python 3.11 (géré avec `uv`)
 - Chroma pour l'index vectoriel (`docker compose`, port 8002)
-- SQLite pour la base (`data/sorabel.db`, générée par le seed, ouverte en `mode=ro` + `PRAGMA query_only`) — PostgreSQL à l'étape 6
+- PostgreSQL pour la base (`docker compose`, port 8003 ; serveur Azure en ligne) — un rôle par profil, `GRANT SELECT` colonne par colonne, un pool chacun
+- SQLite (`data/sorabel.db`) reste la **référence** : `make seed` la génère, `make migrate` la recopie vers PostgreSQL, et `tests/conftest.py` y calcule les attendus de la suite d'acceptance
 - `sqlglot` pour valider le SQL généré avant exécution, `google-genai` pour le générer
 - `fastembed` pour les embeddings (ONNX, multilingue, ~250 Mo — pas de PyTorch) et `rank-bm25` pour la piste lexicale
 - SDK MCP (`mcp`) pour le serveur — deux canaux : stdio et Streamable HTTP sur `/mcp`
@@ -28,7 +29,10 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 
 ```bash
 make install      # uv sync
+make up           # Chroma (8002) et PostgreSQL (8003)
 make seed         # génère data/sorabel.db (déterministe, aligné sur le corpus)
+make migrate      # recopie la SQLite vers PostgreSQL, commentaires compris
+make roles        # un rôle par profil, GRANT dérivés d'access.yaml
 make ingest       # construit l'index documentaire (.chroma/) — requis avant make test
 make eval         # régénère eval/rapport_gain.md (E6)
 make eval-sql     # joue eval/questions_sql.jsonl (24 appels Gemini ; TYPES=ecriture,ambigue pour n'en jouer qu'une part)
@@ -37,6 +41,10 @@ make serve        # serveur MCP stdio (profil via SORABEL_PROFILE)
 make serve-http   # serveur MCP Streamable HTTP sur http://127.0.0.1:8000/mcp
 make client       # client de test (PROFILE=support|commercial)
 ```
+
+`make test` a besoin des cinq premières lignes : la suite interroge la base par
+la gateway, donc sous le rôle du profil. Copier `.env.example` vers `.env`
+suffit à fournir `DATABASE_URL` et les mots de passe de rôle de développement.
 
 ### App bot (démo)
 
@@ -105,6 +113,8 @@ gateway/              # la gouvernance : matrice d'accès, journal, catalogue de
 mcp_server/           # les deux canaux : server.py (stdio), http_server.py (/mcp)
 scripts/
   seed.py             # génère et peuple data/sorabel.db
+  migrate.py          # SQLite → PostgreSQL : DDL transposé, COMMENT ON, COPY
+  roles.py            # un rôle par profil, GRANT SELECT dérivés d'access.yaml
   mcp_client.py       # client MCP de test (stdio, ou --http)
 tests/acceptance/     # suite d'acceptance boîte noire, adossée aux exigences E1–E6
 ui/                   # app bot de démo — Next.js + CopilotKit, agent Gemini

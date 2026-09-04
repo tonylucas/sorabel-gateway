@@ -3,6 +3,12 @@
 Mesuré le 2026-09-02 par `make eval-sql`. Modèle
 `gemini-3.5-flash-lite`, température 0.
 
+> **Chiffres à remesurer.** Ce relevé date de l'exécution sur SQLite. La
+> gateway interroge désormais PostgreSQL et le prompt annonce ce dialecte ;
+> `make eval-sql` doit être rejoué. Le free tier de `gemini-3.7-flash` plafonne
+> à **20 requêtes par jour** — le jeu en compte 24, donc soit un modèle au
+> quota plus large (`gemini-3.5-flash-lite`), soit deux passes avec `TYPES=`.
+
 Le jeu fourni compte 24 questions et se scinde en cinq parts. Chacune
 mesure autre chose : trois d'entre elles ne réussissent qu'en **refusant**.
 
@@ -21,7 +27,7 @@ Aucune ne suffit seule, et elles n'arrêtent pas la même chose :
 
 | # | Barrière | Ce qu'elle arrête | Sa limite |
 |---|---|---|---|
-| 1 | connexion `mode=ro` + `PRAGMA query_only` | toute écriture, y compris par un chemin non prévu | une lecture hors périmètre |
+| 1 | rôle PostgreSQL du profil : `GRANT SELECT` colonne par colonne, `default_transaction_read_only` | toute écriture, **et** toute lecture hors périmètre, y compris par un chemin non prévu | rien : c'est la base qui tranche |
 | 2 | `sql/guard.py` — `sqlglot` : un seul `SELECT`, tables et colonnes du profil | la requête hors périmètre **avant** exécution, avec un message lisible | une requête valide mais massive |
 | 3 | `LIMIT` injecté + plafond de lignes rendues | l'extraction de masse | — |
 

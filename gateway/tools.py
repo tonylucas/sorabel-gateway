@@ -185,7 +185,8 @@ def check_stock(reference: str) -> dict:
     from sql import db
 
     colonnes, lignes = db.run(
-        "SELECT entrepot, quantite, seuil_reappro FROM stocks WHERE ref = ? ORDER BY entrepot",
+        "SELECT entrepot, quantite, seuil_reappro FROM stocks "
+        "WHERE ref = %s ORDER BY entrepot",
         (reference.strip().upper(),),
     )
     if not lignes:
@@ -213,7 +214,7 @@ def order_status(order_id: str) -> dict:
 
     colonnes, lignes = db.run(
         "SELECT c.id, c.date_commande, c.statut, c.montant_ht, cl.raison_sociale "
-        "FROM commandes c JOIN clients cl ON cl.id = c.client_id WHERE c.id = ?",
+        "FROM commandes c JOIN clients cl ON cl.id = c.client_id WHERE c.id = %s",
         (order_id.strip().upper(),),
     )
     if not lignes:
