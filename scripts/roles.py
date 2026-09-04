@@ -24,7 +24,21 @@ from psycopg import sql as pgsql
 from gateway.access import matrice, sql_scope
 from scripts._pg import cible, connect
 from sql.reglages import reglage
-from sql.schema import columns
+
+#: L'ossature des tables, lue **sur la connexion administrateur**.
+#:
+#: `sql.schema.columns()` ferait la même chose, mais sous le rôle du catalogue —
+#: que ce script est précisément en train de créer. Sur une base neuve, s'y
+#: adresser échoue avant d'avoir rien fait : un script d'administration ne peut
+#: pas dépendre des rôles dont il est la cause.
+_COLONNES = """
+SELECT c.relname, a.attname
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+JOIN pg_attribute a ON a.attrelid = c.oid
+WHERE n.nspname = 'public' AND c.relkind = 'r' AND a.attnum > 0 AND NOT a.attisdropped
+ORDER BY c.relname, a.attnum
+"""
 
 #: Rôle technique du catalogue : il ne lit aucune donnée métier, seulement
 #: `information_schema` — ouvert à `PUBLIC` par défaut. Il sert à `get_schema` et
@@ -79,6 +93,14 @@ def _cree_le_role(pg: psycopg.Connection, role: str, mot_de_passe: str) -> None:
     )
 
 
+def _colonnes(pg: psycopg.Connection) -> dict[str, list[str]]:
+    """`{table: [colonne, …]}` — toutes les tables métier, sans filtrage."""
+    out: dict[str, list[str]] = {}
+    for table, colonne in pg.execute(_COLONNES).fetchall():
+        out.setdefault(table, []).append(colonne)
+    return out
+
+
 def _perimetre(pg: psycopg.Connection, role: str, base: str, profil: str) -> list[str]:
     """Applique le périmètre du profil. Rend le résumé de ce qui a été accordé."""
     pg.execute(
@@ -97,7 +119,7 @@ def _perimetre(pg: psycopg.Connection, role: str, base: str, profil: str) -> lis
 
     autorisees, interdites = sql_scope(profil)
     resume = []
-    for table, toutes in columns().items():
+    for table, toutes in _colonnes(pg).items():
         if table not in autorisees:
             continue
         gardees = [c for c in toutes if f"{table}.{c}" not in interdites]
