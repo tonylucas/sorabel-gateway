@@ -222,17 +222,26 @@ console web.
 
 ### 3.1 Le `.env`
 
-Quatre variables s'ajoutent à celles de `.env.example` :
+Deux blocs s'ajoutent à `.env.example`. D'abord l'adresse du serveur, une
+seule fois, en administrateur :
 
 ```sh
-PGHOST=tony-velmo.postgres.database.azure.com
-PGDATABASE=sorabel
-PGUSER=<administrateur du serveur>
-PGPASSWORD=<son mot de passe>
+DATABASE_URL=postgresql://<admin>:<mot de passe>@tony-velmo.postgres.database.azure.com/sorabel?sslmode=require
 ```
 
-`migrate.py` et `roles.sql` s'y connectent en administrateur ; c'est la seule
-chose pour laquelle ce compte sert. La gateway, elle, ne connaît que les rôles.
+`migrate.py` et `roles.py` s'y connectent : c'est la seule chose pour laquelle
+ce compte sert. La gateway, elle, n'ouvre que des connexions de rôle — elle
+reprend cette URL et n'en remplace que l'identité, si bien que le FQDN et le
+nom de la base ne sont écrits qu'ici.
+
+Puis un mot de passe par rôle, ceux générés à l'étape 1.7 :
+
+```sh
+PG_SUPPORT=…
+PG_COMMERCIAL=…
+PG_DEV=…
+PG_CATALOG=…
+```
 
 ### 3.2 Base et rôles
 

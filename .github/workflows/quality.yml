@@ -26,11 +26,7 @@ jobs:
           --health-interval 5s --health-timeout 3s --health-retries 12
 
     env:
-      PGHOST: localhost
-      PGPORT: "5432"
-      PGDATABASE: sorabel
-      PGUSER: sorabel
-      PGPASSWORD: sorabel
+      DATABASE_URL: postgresql://sorabel:sorabel@localhost:5432/sorabel
       # Mots de passe des rôles : la CI part d'une base neuve à chaque
       # exécution, ils n'ont rien à protéger.
       PG_SUPPORT: ci_support

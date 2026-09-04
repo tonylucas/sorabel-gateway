@@ -1,38 +1,36 @@
 """La connexion administrateur des scripts de migration — commune à `migrate` et `roles`.
 
 Ces deux scripts sont les seuls du dépôt à se connecter en administrateur : ils
-créent le schéma et les rôles. La gateway, elle, ne connaît que les rôles.
+créent le schéma et les rôles. La gateway, elle, n'ouvre que des connexions de
+rôle — et les dérive de cette même `DATABASE_URL`, dont elle ne remplace que
+l'identité. L'adresse du serveur n'est donc déclarée qu'une fois.
 """
 
 from __future__ import annotations
 
-import os
-
 import psycopg
+from psycopg import conninfo
 
 from sql.generate import reglage
 
-#: Les variables libpq que les deux scripts attendent. `psycopg.connect()` sans
-#: argument les lit dans l'environnement : rien à assembler en DSN, et un mot de
-#: passe n'a pas à traverser une ligne de commande pour arriver là.
-VARIABLES = ("PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD", "PGSSLMODE")
 
-
-def env_libpq() -> dict[str, str]:
-    """Complète l'environnement depuis `.env` et rend ce qui est connu."""
-    valeurs = {nom: reglage(nom) for nom in VARIABLES}
-    for nom, valeur in valeurs.items():
-        if valeur:
-            os.environ[nom] = valeur
-    manquantes = [n for n in ("PGHOST", "PGDATABASE", "PGUSER") if not valeurs[n]]
-    if manquantes:
+def database_url() -> str:
+    """L'URL de connexion administrateur, de l'environnement ou de `.env`."""
+    url = reglage("DATABASE_URL")
+    if not url:
         raise SystemExit(
-            f"Variables de connexion manquantes : {', '.join(manquantes)}. "
-            "Les renseigner dans `.env` (cf. docs/deploiement.md § 3.1)."
+            "DATABASE_URL absente. La renseigner dans `.env` — par exemple "
+            "`postgresql://sorabel:sorabel@localhost:8003/sorabel` "
+            "(cf. docs/deploiement.md § 3.1)."
         )
-    return valeurs
+    return url
+
+
+def cible() -> tuple[str, str]:
+    """`(base, hôte)` — de quoi dire à l'exploitant où il est en train d'écrire."""
+    infos = conninfo.conninfo_to_dict(database_url())
+    return str(infos.get("dbname", "?")), str(infos.get("host", "?"))
 
 
 def connect() -> psycopg.Connection:
-    env_libpq()
-    return psycopg.connect(autocommit=False)
+    return psycopg.connect(database_url())

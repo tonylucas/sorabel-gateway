@@ -22,7 +22,7 @@ import psycopg
 from psycopg import sql as pgsql
 
 from gateway.access import matrice, sql_scope
-from scripts._pg import connect, env_libpq
+from scripts._pg import cible, connect
 from sql.generate import reglage
 from sql.schema import columns
 
@@ -124,8 +124,7 @@ def _perimetre(pg: psycopg.Connection, role: str, base: str, profil: str) -> lis
 
 
 def main() -> int:
-    cible = env_libpq()
-    base = cible["PGDATABASE"]
+    base, _ = cible()
 
     with connect() as pg:
         for profil in matrice():
