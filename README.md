@@ -108,7 +108,7 @@ eval/
   run_eval_sql.py     # joue les 24 questions SQL : génération, refus, périmètre
 ingest/               # parse.py (métadonnées déclarées, dédoublonnage), index.py (Chroma)
 retrieval/            # embed.py, search.py (hybride + porte de pertinence), answer.py
-sql/                  # schema.py (une source pour le prompt et le garde), generate.py, guard.py, db.py
+sql/                  # schema.py (introspection : une source pour le prompt et le garde), generate.py, guard.py, db.py, reglages.py
 gateway/              # la gouvernance : matrice d'accès, journal, catalogue des 8 tools
 mcp_server/           # les deux canaux : server.py (stdio), http_server.py (/mcp)
 scripts/
