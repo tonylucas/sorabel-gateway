@@ -263,7 +263,7 @@ def genere(question: str, profile: str) -> str:
                 response_json_schema=REPONSE,
                 # Le schéma tient en une page et la tâche est cadrée par huit
                 # exemples : le raisonnement coûterait des secondes sans rien ajouter.
-                thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel.MINIMAL),
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
             ),
         )
     except errors.APIError as exc:
