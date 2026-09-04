@@ -31,16 +31,28 @@ from psycopg import sql as pgsql
 from sqlglot import exp
 
 from scripts._pg import cible, connect
-from sql.schema import SCHEMA_PATH
 
 #: La SQLite de référence, source de la migration. `sql/db.py` ne la connaît
 #: plus : depuis la bascule, la gateway ne parle qu'à PostgreSQL.
 SQLITE_PATH = Path(os.environ.get("SORABEL_DB") or Path(__file__).resolve().parent.parent
                    / "data" / "sorabel.db")
 
-#: Le dialecte cible. `sql.schema.DIALECT_SOURCE` dit l'autre bout : `docs/schema.sql`
-#: reste écrit en SQLite, puisqu'il sert aussi `scripts/seed.py`.
+#: `docs/schema.sql` est écrit en SQLite — il sert aussi `scripts/seed.py` — et
+#: n'est plus lu que par ce script : depuis l'introspection, `sql/schema.py` tient
+#: le schéma de la base, pas d'un fichier.
+SCHEMA_PATH = Path(__file__).resolve().parent.parent / "docs" / "schema.sql"
+DIALECTE_SOURCE = "sqlite"
 DIALECTE_CIBLE = "postgres"
+
+#: `SENSIBLE : prix d'achat fournisseur — ne sort jamais pour le profil support`.
+#: Seule la description part en `COMMENT ON` ; la politique, non.
+#:
+#: Un commentaire de base décrit une colonne, il ne prescrit pas qui la lit —
+#: c'est le rôle d'`access.yaml`, et des `GRANT` qui en découlent. Le garder
+#: coûterait deux fois : la phrase serait servie au profil qui a le droit de
+#: lire la colonne (le filtrage ayant déjà retiré la colonne à l'autre), et un
+#: modèle qui lit « ne sort jamais » refuse. Mesuré sur SQL-11.
+_SENSIBLE = re.compile(r"SENSIBLE\s*:\s*(.*?)\s*—\s*ne sort jamais[^\n]*")
 
 #: `produits : le catalogue Sorabel (…)` — la ligne de commentaire qui décrit la
 #: table, parmi les tirets de séparation et l'en-tête du fichier.
@@ -48,7 +60,7 @@ _DESCRIPTION = re.compile(r"^\s*(\w+)\s*:\s*(.+?)\s*$")
 
 
 def _statements() -> list[exp.Create]:
-    arbres = sqlglot.parse(SCHEMA_PATH.read_text(encoding="utf-8"), read="sqlite")
+    arbres = sqlglot.parse(SCHEMA_PATH.read_text(encoding="utf-8"), read=DIALECTE_SOURCE)
     return [s for s in arbres if isinstance(s, exp.Create)]
 
 
@@ -72,11 +84,17 @@ def _commentaires(create: exp.Create) -> tuple[str | None, dict[str, str]]:
         if trouve and trouve.group(1) == nom:
             table = trouve.group(2)
 
-    colonnes = {
-        d.name: " ".join(c.strip() for c in d.comments).strip()
-        for d in create.find_all(exp.ColumnDef)
-        if d.comments
-    }
+    colonnes = {}
+    for definition in create.find_all(exp.ColumnDef):
+        # Parcourir le sous-arbre, et non lire `definition.comments` : sur la
+        # dernière colonne d'un `CREATE TABLE`, sqlglot accroche le commentaire
+        # de fin de ligne à la contrainte (`NotNullColumnConstraint`) plutôt qu'à
+        # la définition. Trois descriptions sur cinq tables s'y perdaient.
+        texte = " ".join(
+            c.strip() for noeud in definition.walk() for c in (noeud.comments or ())
+        )
+        if texte:
+            colonnes[definition.name] = _SENSIBLE.sub(r"\1", texte).strip()
     return table, colonnes
 
 
