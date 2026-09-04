@@ -113,6 +113,58 @@ def _contraintes() -> dict[str, list[tuple[str, list[str], str | None, list[str]
     return out
 
 
+#: Le périmètre SQL, tel que la base l'applique. `has_column_privilege` est
+#: évalué pour le rôle **de la connexion** : la requête part sur le pool du
+#: profil, donc la réponse est la sienne.
+#:
+#: Colonne par colonne, jamais par table : un `GRANT SELECT (colonnes)` ne
+#: confère aucun privilège au niveau de la table, et `has_table_privilege`
+#: rendrait `false` sur `produits` pour le support — qui en lit pourtant sept
+#: colonnes sur neuf. Épinglé par `tests/test_roles.py`.
+_PERIMETRE = """
+SELECT c.relname,
+       a.attname,
+       has_column_privilege(c.oid, a.attnum, 'SELECT')
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+JOIN pg_attribute a ON a.attrelid = c.oid
+WHERE n.nspname = 'public' AND c.relkind = 'r' AND a.attnum > 0 AND NOT a.attisdropped
+ORDER BY c.relname, a.attnum
+"""
+
+
+@lru_cache(maxsize=8)
+def perimetre(profile: str) -> tuple[frozenset[str], frozenset[str]]:
+    """`(tables lisibles, colonnes interdites)` — ce que la base accorde au profil.
+
+    Appelé par `gateway.access.sql_scope()`, qui reste la seule porte de
+    l'autorisation. Mis en cache par profil : les `GRANT` ne changent qu'avec
+    `make roles`, donc entre deux démarrages.
+
+    Un rôle existant mais sans aucun `GRANT` obtient un périmètre vide : tout
+    lui est refusé, ce qui est le repli qu'on veut. Un profil déclaré dont le
+    rôle ou le mot de passe manque lève, en revanche : c'est une erreur de
+    déploiement, elle doit se voir au journal plutôt que passer pour un refus
+    métier. `gateway.access.sql_scope()` écarte les profils hors matrice avant
+    d'arriver ici.
+    """
+    from sql import db
+
+    _, lignes = db.run(_PERIMETRE, profile=profile)
+    lisibles: dict[str, set[str]] = {}
+    refusees: set[str] = set()
+    for table, colonne, accorde in lignes:
+        if accorde:
+            lisibles.setdefault(table, set()).add(colonne)
+        else:
+            refusees.add(f"{table}.{colonne}")
+
+    tables = frozenset(lisibles)
+    # Une colonne refusée sur une table hors périmètre est déjà couverte par le
+    # refus de la table : la lister brouillerait les messages du garde.
+    return tables, frozenset(c for c in refusees if c.split(".", 1)[0] in tables)
+
+
 def columns() -> dict[str, tuple[str, ...]]:
     """`{table: (colonne, …)}` — l'ossature complète, sans filtrage."""
     _, colonnes = _introspection()

@@ -14,7 +14,7 @@ import pytest
 
 psycopg = pytest.importorskip("psycopg")
 
-from gateway.access import sql_scope  # noqa: E402
+from gateway.access import sql_declare, sql_scope  # noqa: E402
 from sql.db import conninfo  # noqa: E402
 from sql.reglages import reglage  # noqa: E402
 
@@ -65,37 +65,32 @@ def test_le_catalogue_ne_lit_aucune_donnee_metier() -> None:
             con.execute("SELECT count(*) FROM produits")
 
 
-def test_les_grant_couvrent_exactement_la_matrice() -> None:
-    """`has_column_privilege` rend ce qu'`access.yaml` déclare, colonne à colonne.
+def test_les_grant_disent_exactement_ce_que_la_matrice_declare() -> None:
+    """L'intention et le fait doivent coïncider — c'est tout l'objet de `make roles`.
 
-    C'est l'invariant que la PR suivante exploitera : `sql_scope()` lira les
-    GRANT au lieu du YAML, et les deux doivent déjà dire la même chose.
-
-    **Le contrôle se fait colonne par colonne, jamais par table** :
-    `has_table_privilege('produits')` vaut `False` pour le support alors qu'il
-    lit neuf colonnes sur onze — un `GRANT SELECT (colonnes)` ne confère aucun
-    droit au niveau de la table. Un `sql_scope()` écrit sur
-    `has_table_privilege` fermerait donc `produits` en entier.
+    `sql_declare()` lit `access.yaml`, `sql_scope()` lit les `GRANT`. Le premier
+    est ce qu'on a voulu, le second ce que la base applique et ce que le garde
+    consulte. Les voir s'écarter, c'est avoir oublié de rejouer `make roles`
+    après avoir amendé la matrice — ou avoir élargi un `GRANT` à la main.
     """
-    autorisees, interdites = sql_scope("support")
+    for profil in ("support", "commercial"):
+        _connexion(profil).close()  # saute proprement si la base est absente
+        assert sql_scope(profil) == sql_declare(profil), profil
+
+
+def test_le_perimetre_se_lit_colonne_par_colonne() -> None:
+    """`has_table_privilege` ne peut pas servir de raccourci.
+
+    Il rend `False` sur `produits` pour le support, qui en lit pourtant sept
+    colonnes sur neuf : un `GRANT SELECT (colonnes)` ne confère aucun privilège
+    au niveau de la table. Un `sql_scope()` écrit dessus fermerait `produits` en
+    entier — et le support n'aurait plus de catalogue.
+    """
     with _connexion("support") as con:
-
-        def colonne_lisible(table: str, nom: str) -> bool:
-            rendu = con.execute(
-                "SELECT has_column_privilege(%s, %s, 'SELECT')", (table, nom)
-            ).fetchone()
-            assert rendu is not None
-            return bool(rendu[0])
-
-        for colonne in interdites:
-            table, nom = colonne.split(".", 1)
-            assert not colonne_lisible(table, nom), f"{colonne} devrait être refusée"
-
-        assert colonne_lisible("produits", "nom")
         assert con.execute("SELECT has_table_privilege('produits', 'SELECT')").fetchone() == (
             False,
-        ), "un GRANT par colonnes ne donne pas le privilège de table — ne pas s'y fier"
-
-        assert "ventes" not in autorisees
-        assert not colonne_lisible("ventes", "marge_ht")
-        assert not colonne_lisible("ventes", "quantite")
+        )
+    tables, interdites = sql_scope("support")
+    assert "produits" in tables
+    assert interdites == {"produits.prix_achat_ht", "produits.marge_pct"}
+    assert "ventes" not in tables
