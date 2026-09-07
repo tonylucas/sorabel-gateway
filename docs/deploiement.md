@@ -536,20 +536,27 @@ distinguent à l'œil — le premier est une page HTML de Google, le second
 l'enveloppe `{status, payload, message}` de la gateway avec le code
 `unauthorized_client`.
 
-### Le client de test, sans manipuler de jeton
+### Le client de test contre le service déployé
 
-`gcloud` sait ouvrir un tunnel local authentifié, ce qui évite d'apprendre au
-client de test à signer ses requêtes :
+`scripts/mcp_client.py` présente les deux barrières si l'environnement les lui
+donne — et rien du tout sinon, ce qui laisse le mode local inchangé :
 
 ```sh
-gcloud run services proxy sorabel-mcp --region europe-north1 --port 8080
-# dans un autre terminal
-MCP_URL=http://127.0.0.1:8080/mcp make client PROFILE=support
+export MCP_URL=<url Cloud Run>/mcp
+export SORABEL_TOKEN=$(gcloud auth print-identity-token)
+export SORABEL_KEY=$(gcloud secrets versions access latest --secret=sorabel-key)
+
+uv run python scripts/mcp_client.py --http --profile support --tool list_sources
 ```
 
-Le proxy injecte le jeton d'identité mais **pas** la clé partagée : avec la
-barrière 2 armée, exporter `SORABEL_KEY` dans le terminal du client reste
-nécessaire.
+`gcloud run services proxy` ferait le même travail pour le jeton, mais il
+dépend du composant `cloud-run-proxy`, que les installations gérées par un
+gestionnaire de paquets ne peuvent pas ajouter (`binary not installed`). Deux
+variables d'environnement ne dépendent de rien.
+
+Le premier appel après une instance froide met une dizaine de secondes : le
+modèle d'embeddings se charge en mémoire. C'est ce que `--min-instances 1`
+achète le jour de la démonstration.
 
 ### L'index documentaire, tel qu'il sert
 

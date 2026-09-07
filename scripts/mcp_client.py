@@ -33,7 +33,15 @@ HTTP_URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp")
 async def _transport(profile: str, http: bool):
     """stdio (un process par profil) ou Streamable HTTP (profil dans le header)."""
     if http:
-        async with streamablehttp_client(HTTP_URL, headers={"X-Sorabel-Profile": profile}) as (
+        # Les deux barrières ne concernent qu'un service déployé : en local, la
+        # gateway n'arme pas la clé faute de secret, et personne n'exige de jeton.
+        #   SORABEL_TOKEN=$(gcloud auth print-identity-token)
+        entetes = {"X-Sorabel-Profile": profile}
+        if cle := os.environ.get("SORABEL_KEY", ""):
+            entetes["X-Sorabel-Key"] = cle
+        if jeton := os.environ.get("SORABEL_TOKEN", ""):
+            entetes["Authorization"] = f"Bearer {jeton}"
+        async with streamablehttp_client(HTTP_URL, headers=entetes) as (
             read,
             write,
             _,
