@@ -1,9 +1,12 @@
 import { BuiltInAgent, CopilotRuntime, createCopilotRuntimeHandler } from "@copilotkit/runtime/v2";
+import { identityToken } from "@/app/identity";
 
 const MCP_URL = process.env.MCP_URL ?? "http://127.0.0.1:8000/mcp";
 const MODEL = process.env.GEMINI_MODEL ?? "google/gemini-3.6-flash";
 const PROFILES = ["support", "commercial", "dev"];
 const PROFILE_HEADER = "x-sorabel-profile";
+/** Audience du jeton : l'URL du service, sans le chemin `/mcp`. */
+const MCP_AUDIENCE = new URL(MCP_URL).origin;
 
 /** Le profil est déclaré par le client, jamais deviné : header, sinon `support`. */
 function resolveProfile(request: Request): string {
@@ -16,15 +19,21 @@ function resolveProfile(request: Request): string {
  * HTTP : c'est par lui que le profil traverse le client MCP jusqu'à la gateway.
  */
 function fetchAsProfile(profile: string): typeof fetch {
-  return (input, init) =>
-    fetch(input, {
+  return async (input, init) => {
+    const jeton = await identityToken(MCP_AUDIENCE);
+    return fetch(input, {
       ...init,
       headers: {
         ...Object.fromEntries(new Headers(init?.headers).entries()),
         [PROFILE_HEADER]: profile,
+        // Sans cet en-tête, Cloud Run répond avant le conteneur : la gateway est
+        // déployée en authentification requise, et `sorabel-ui` est le seul
+        // compte à porter `run.invoker` dessus. Nul en local.
+        ...(jeton ? { Authorization: `Bearer ${jeton}` } : {}),
         ...(process.env.SORABEL_KEY ? { "x-sorabel-key": process.env.SORABEL_KEY } : {}),
       },
     });
+  };
 }
 
 function apiKey(): string {
