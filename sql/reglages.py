@@ -25,7 +25,7 @@ def reglage(nom: str, defaut: str = "") -> str:
     """L'environnement d'abord, `.env` en repli — sans injecter le fichier entier.
 
     `load_dotenv()` pousserait tout `.env` dans `os.environ` et rendrait actives
-    des variables que d'autres modules lisent (`EMBEDDING_MODEL`, `CHROMA_URL`,
+    des variables que d'autres modules lisent (`EMBEDDING_MODEL`, `CHROMA_PATH`,
     `SORABEL_PROFILE`) : on changerait le comportement de code qui ne demande
     rien. Chaque appelant ne lit ici que les réglages dont il a besoin.
     """

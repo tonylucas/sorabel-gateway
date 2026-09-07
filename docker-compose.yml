@@ -1,19 +1,4 @@
 services:
-  chroma:
-    image: chromadb/chroma:0.5.23
-    ports:
-      - "8002:8000"
-    volumes:
-      - ./.docker-data/chroma:/chroma/chroma
-    environment:
-      - IS_PERSISTENT=TRUE
-      - ANONYMIZED_TELEMETRY=FALSE
-    healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8000 && echo ok"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-
   # Le PostgreSQL de développement. Même version majeure que le serveur Azure
   # (`tony-velmo`, PG 18) : un dialecte qui passe ici doit passer là-bas.
   postgres:

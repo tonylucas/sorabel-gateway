@@ -16,7 +16,7 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 ## Stack
 
 - Python 3.11 (géré avec `uv`)
-- Chroma pour l'index vectoriel (`docker compose`, port 8002)
+- Chroma pour l'index vectoriel, **embarqué** (`PersistentClient` sur `.chroma`, construit par `make ingest` et par le `docker build`)
 - PostgreSQL pour la base (`docker compose`, port 8003 ; serveur Azure en ligne) — un rôle par profil, `GRANT SELECT` colonne par colonne, un pool chacun
 - SQLite (`data/sorabel.db`) reste la **référence** : `make seed` la génère, `make migrate` la recopie vers PostgreSQL, et `tests/conftest.py` y calcule les attendus de la suite d'acceptance
 - `sqlglot` pour valider le SQL généré avant exécution, `google-genai` pour le générer
@@ -29,7 +29,7 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 
 ```bash
 make install      # uv sync
-make up           # Chroma (8002) et PostgreSQL (8003)
+make up           # PostgreSQL (8003)
 make seed         # génère data/sorabel.db (déterministe, aligné sur le corpus)
 make migrate      # recopie la SQLite vers PostgreSQL, commentaires compris
 make roles        # un rôle par profil, GRANT dérivés d'access.yaml
