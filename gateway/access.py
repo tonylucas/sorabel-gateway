@@ -211,11 +211,26 @@ def journal_path() -> Path:
     return Path(os.environ.get("GATEWAY_JOURNAL") or REPO_ROOT / "logs" / "journal.jsonl")
 
 
+#: Double le journal sur `stdout`, que Cloud Logging capture. Une instance
+#: Cloud Run recyclée emporte son système de fichiers : le JSONL local reste le
+#: mode de développement et celui des tests, il ne survit pas en ligne.
+#:
+#: **À n'activer que sur le canal HTTP.** En stdio, `stdout` porte le protocole
+#: JSON-RPC : y écrire une ligne de journal corromprait la conversation avec le
+#: client. D'où un réglage explicite plutôt qu'une détection.
+JOURNAL_STDOUT = os.environ.get("GATEWAY_JOURNAL_STDOUT", "").lower() in {"1", "true", "yes"}
+
+
 def journalise(entry: dict[str, Any]) -> None:
+    ligne = json.dumps(entry, ensure_ascii=False)
+
     path = journal_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        handle.write(ligne + "\n")
+
+    if JOURNAL_STDOUT:
+        print(ligne, flush=True)
 
 
 REFUS_TOOL = (
