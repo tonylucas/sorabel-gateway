@@ -8,7 +8,7 @@ import pytest
 
 from ingest.parse import Document, dedupe, doc_id_from, load_corpus
 from retrieval.answer import citation
-from retrieval.search import pertinent, search
+from retrieval.search import pertinent, search, verifie_le_modele
 
 
 @pytest.mark.parametrize(
@@ -100,3 +100,24 @@ def test_la_citation_nomme_le_fichier_exact_version_comprise():
     assert source["fichier"] == "REF-8842-v2.1.pdf"
     assert source["chemin"] == "data/corpus/fiches/REF-8842-v2.1.pdf"
     assert (Path(__file__).resolve().parent.parent / source["chemin"]).exists()
+
+
+def test_un_index_encode_par_un_autre_modele_est_refuse(monkeypatch):
+    """La panne silencieuse : des résultats plausibles dans le mauvais espace."""
+
+    class Coll:
+        metadata = {"embedding_model": "un-autre-modele"}
+
+    monkeypatch.setattr("retrieval.search.collection", lambda: Coll())
+    with pytest.raises(RuntimeError, match="un-autre-modele"):
+        verifie_le_modele()
+
+
+def test_un_index_sans_modele_inscrit_ne_bloque_pas(monkeypatch):
+    """Construit avant le contrôle : on ne peut rien affirmer, donc rien refuser."""
+
+    class Coll:
+        metadata: dict[str, str] = {}
+
+    monkeypatch.setattr("retrieval.search.collection", lambda: Coll())
+    verifie_le_modele()

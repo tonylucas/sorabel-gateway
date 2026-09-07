@@ -21,7 +21,7 @@ os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 import chromadb  # noqa: E402
 
 from ingest.parse import Document, dedupe, load_corpus  # noqa: E402
-from retrieval.embed import embed  # noqa: E402
+from retrieval.embed import MODEL_NAME, embed  # noqa: E402
 
 # Même désactivée, Chroma 0.5.23 tente l'envoi et journalise l'échec en `error`.
 # C'est un bug connu de cette version, sans effet — mais « Failed » dans la
@@ -50,7 +50,12 @@ def client() -> chromadb.ClientAPI:
 def collection(create: bool = False):
     api = client()
     if create:
-        return api.get_or_create_collection(COLLECTION, metadata={"hnsw:space": "cosine"})
+        # Le modèle est inscrit dans la collection : lui seul sait avec quoi
+        # l'index a été encodé, et `retrieval.search` le vérifie avant d'interroger.
+        return api.get_or_create_collection(
+            COLLECTION,
+            metadata={"hnsw:space": "cosine", "embedding_model": MODEL_NAME},
+        )
     return api.get_collection(COLLECTION)
 
 
@@ -75,7 +80,10 @@ def build() -> dict:
     api = client()
     if COLLECTION in [c.name for c in api.list_collections()]:
         api.delete_collection(COLLECTION)
-    coll = api.get_or_create_collection(COLLECTION, metadata={"hnsw:space": "cosine"})
+    coll = api.get_or_create_collection(
+        COLLECTION,
+        metadata={"hnsw:space": "cosine", "embedding_model": MODEL_NAME},
+    )
 
     # Le titre est répété avant le corps : il porte le libellé produit ou le nom
     # de la procédure, que les questions en langage naturel reprennent presque

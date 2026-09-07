@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 
 from ingest.index import collection
+from retrieval.embed import MODEL_NAME
 
 REF_PATTERN = re.compile(r"REF-\d{4}", re.IGNORECASE)
 TOKEN_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
@@ -48,6 +49,30 @@ class Hit:
             "text": self.text,
             "metadata": self.metadata,
         }
+
+
+def verifie_le_modele() -> None:
+    """L'index et la requête doivent être encodés par le même modèle.
+
+    Sans ce contrôle, changer `EMBEDDING_MODEL` sur un index déjà construit ne
+    casse rien de visible : les vecteurs de la requête tombent simplement dans un
+    autre espace, et le retrieval rend des documents plausibles mais faux. C'est
+    la panne qu'on ne veut pas — une réponse manquée coûte moins qu'une réponse
+    inventée, et celle-ci ne se voit pas.
+
+    Épingler le modèle dans l'image ne suffisait pas : un `--env-file` au
+    lancement écrase l'`ENV` du Dockerfile. Seule la collection sait avec quoi
+    elle a été encodée.
+
+    Un index construit avant ce contrôle ne porte pas le nom : on ne bloque pas
+    pour autant, faute de pouvoir rien affirmer.
+    """
+    construit = (collection().metadata or {}).get("embedding_model")
+    if construit and construit != MODEL_NAME:
+        raise RuntimeError(
+            f"index encodé avec {construit!r}, requêtes avec {MODEL_NAME!r} — "
+            "rejouer `make ingest`, ou remettre EMBEDDING_MODEL à sa valeur d'origine"
+        )
 
 
 def tokenize(text: str) -> list[str]:
@@ -145,6 +170,7 @@ def search(
 ) -> list[Hit]:
     if mode not in MODES:
         raise ValueError(f"mode inconnu : {mode!r} (attendu : {', '.join(MODES)})")
+    verifie_le_modele()
 
     # Le routage par référence appartient à la stratégie hybride : le mode dense
     # doit rester la baseline nue que E6 demande de comparer.
