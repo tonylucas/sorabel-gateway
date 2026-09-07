@@ -63,6 +63,15 @@ Deux postes dépassent ce plafond à eux seuls s'ils tournent au mois :
 Le reste — Artifact Registry, Cloud Logging, Cloud Run au repos — tient
 largement dans le crédit.
 
+Aucun budget n'est configuré sur le compte de facturation, et `gcloud` ne sait
+pas dire ce qui a été dépensé : l'API Cloud Billing expose les comptes, les
+projets et les budgets, jamais un montant consommé ni le solde d'un crédit. Ces
+deux chiffres ne se lisent que dans la console (*Facturation → Rapports* et
+*Facturation → Crédits*), ou dans un export BigQuery qui n'existe pas ici. Une
+alerte de budget à 8,59 € est donc le seul garde-fou automatique disponible —
+elle prévient avant l'épuisement, là où une estimation à la main ne prévient de
+rien.
+
 > Si cette fenêtre courte est trop contraignante, l'alternative n'est pas un
 > réglage mais un déplacement : **Azure Container Apps**, dans l'abonnement qui
 > porte déjà `tony-velmo`. Le service et la base sont alors dans le même cloud,
@@ -154,11 +163,17 @@ gcloud auth configure-docker europe-north1-docker.pkg.dev
 
 | Compte | Rôles à lui donner |
 |---|---|
-| `sorabel-mcp` — le service Python | `Accesseur de secrets Secret Manager`, `Rédacteur de journaux` |
-| `sorabel-ui` — l'app Next.js | `Accesseur de secrets Secret Manager`, `Rédacteur de journaux`, **`Demandeur Cloud Run`** |
+| `sorabel-mcp` — le service Python | `Accesseur de secrets Secret Manager` |
+| `sorabel-ui` — l'app Next.js | `Accesseur de secrets Secret Manager`, **`Demandeur Cloud Run`** |
 
 Le dernier rôle est la barrière 1 du modèle de confiance : le service Python
 est déployé en *authentification requise*, et seul `sorabel-ui` peut l'appeler.
+
+Pas de `Rédacteur de journaux` : Cloud Run capture `stdout` et `stderr` du
+conteneur pour son propre compte, sans que le compte de service ait le moindre
+droit sur Cloud Logging. Ce rôle ne servirait qu'à une application qui
+appellerait l'API Logging elle-même — ce que la gateway ne fait pas, elle
+imprime.
 
 ### 1.7 Secrets
 
@@ -297,15 +312,16 @@ facultatif** : un Mac Apple Silicon produit sinon une image `arm64` que Cloud
 Run refuse au démarrage, sans message explicite.
 
 ```sh
-REGISTRY=europe-north1-docker.pkg.dev/projet-perso-f22c7/sorabel
-TAG=$(git rev-parse --short HEAD)
-
-docker build --platform linux/amd64 -t $REGISTRY/mcp:$TAG .
-docker push $REGISTRY/mcp:$TAG
-
-docker build --platform linux/amd64 -t $REGISTRY/ui:$TAG ui/
-docker push $REGISTRY/ui:$TAG
+make push        # construit les deux images et les pousse, tag = HEAD court
 ```
+
+`REGISTRY` et `TAG` sont surchargeables (`make push TAG=demo`). Construire sans
+pousser : `make images`.
+
+**Committer avant de construire.** Le tag vient de `git rev-parse --short HEAD`
+mais le contexte de build est l'arbre de travail : construire avec des
+modifications non validées produit une image étiquetée d'un commit qui ne la
+décrit pas, et que personne ne pourra reconstruire.
 
 L'index Chroma est construit **pendant** le `docker build` du service Python et
 embarqué dans l'image : Cloud Run est sans état, et le corpus ne bouge pas.
@@ -327,8 +343,26 @@ dans Artifact Registry : le portail les propose dans un sélecteur, il n'y a rie
 | Nom du service | `sorabel-mcp` | |
 | Région | **`europe-north1`** | celle du NAT ; ailleurs, le service sortirait par une autre IP que celle autorisée chez Azure |
 | Authentification | **Exiger une authentification** | barrière 1 du modèle de confiance |
+| Entrée | **Tout** | voir ci-dessous — c'est le piège de cette page |
 | Nombre minimal d'instances | **1** | le modèle d'embeddings rend le démarrage à froid trop long |
-| Nombre maximal d'instances | 3 | le plafond de connexions du serveur Azure |
+| Nombre maximal d'instances | **3** | le plafond de connexions du serveur Azure |
+
+> **L'entrée réseau n'est pas la barrière.** En *Interne*, le frontend Google
+> refuse tout ce qui n'arrive pas du VPC, **avant** d'évaluer IAM — et l'app bot
+> n'a pas de connecteur VPC (§4.3), ses appels viennent de l'internet public.
+> Le symptôme est une page `404 Page not found` renvoyée au client MCP, sans
+> aucune trace dans les journaux du conteneur, qui n'a rien vu passer. Ce qui
+> protège le service, c'est *Exiger une authentification* ; l'entrée fermée ne
+> fait que l'isoler de son propre appelant.
+
+> **Le nombre maximal d'instances n'est pas cosmétique.** `sql/db.py` ouvre un
+> pool par profil, `max_size=3`, soit jusqu'à 12 connexions par instance sur
+> quatre rôles. À 10 instances — la valeur par défaut — c'est 120 connexions
+> demandées à un serveur Burstable B1ms qui en plafonne une cinquantaine,
+> **partagées avec `velmo`** : la montée en charge casserait aussi la base
+> voisine. À vérifier sur la révision et pas seulement sur le service : un
+> `gcloud run services update` ultérieur peut réécrire le gabarit et perdre les
+> valeurs posées par la console.
 
 Puis déplier **Conteneurs, volumes, mise en réseau, sécurité** :
 
@@ -343,6 +377,14 @@ Puis déplier **Conteneurs, volumes, mise en réseau, sécurité** :
   puis **Envoyer tout le trafic vers le VPC** — réseau `default`, sous-réseau
   `default`. C'est ce réglage, et lui seul, qui fait passer les requêtes vers
   Azure par le NAT et donc par l'IP autorisée.
+
+  En *Trafic privé uniquement*, les destinations publiques sortent en direct,
+  par une adresse éphémère : le pare-feu Azure les refuse. Et une fois *tout le
+  trafic* envoyé au VPC, **la passerelle NAT devient nécessaire à Gemini
+  autant qu'à PostgreSQL** — `generativelanguage.googleapis.com` est un
+  endpoint public comme un autre, et sans NAT le VPC n'a aucune route vers
+  l'internet. Supprimer le NAT sans repasser en *Trafic privé uniquement*
+  n'économise pas le SQL : ça coupe aussi la génération et la synthèse.
 - **Sécurité** : compte de service `sorabel-mcp`.
 
 ### 4.2 Autoriser l'app bot à l'appeler
@@ -366,10 +408,50 @@ Même écran, mêmes région et image (`sorabel/ui:<tag>`), avec trois différen
 | Compte de service | `sorabel-ui` |
 
 Variables et secrets : `MCP_URL` = l'URL du service `sorabel-mcp` suivie de
-`/mcp`, plus les secrets `GOOGLE_API_KEY` et `SORABEL_KEY`.
+`/mcp`, plus les secrets `GOOGLE_API_KEY` et `SORABEL_KEY` — **en références de
+secrets, pas en variables** : une variable d'environnement se lit en clair dans
+la description du service et dans les journaux de déploiement.
 
 Pas de connexion VPC ici : l'app bot ne parle qu'à Cloud Run et à Gemini, jamais
 à PostgreSQL.
+
+> **Le quota Gemini est le point de rupture d'une démonstration.** Le free tier
+> plafonne à une vingtaine de requêtes par jour *et par modèle*, et l'agent en
+> consomme plusieurs par message. Les compteurs étant séparés par modèle, mettre
+> `GEMINI_MODEL` sur le même modèle léger que la génération SQL
+> (`sql/generate.py`) répartit la charge sans rebuild. Si ça ne suffit pas, la
+> seule autre sortie est une clé prise dans le projet facturé — quelques
+> centimes pour une heure de démonstration, mais on quitte le free tier.
+
+### 4.4 Ce que l'app bot doit présenter — et que la console ne configure pas
+
+Les deux barrières du modèle de confiance sont dans le code, pas dans les
+formulaires. Il n'y a rien à cocher ici, mais tout à vérifier avant de conclure
+que le déploiement fonctionne.
+
+**Le jeton d'identité.** `sorabel-mcp` exigeant une authentification, chaque
+requête doit porter un `Authorization: Bearer <jeton>`. L'app bot le prend sur le
+serveur de métadonnées de son instance (`ui/app/identity.ts`), pour une audience
+qui est l'**URL du service appelé, chemin exclu** — un jeton émis pour
+`…/mcp` est rejeté comme s'il n'y en avait pas. Le symptôme d'un jeton absent est
+un `403 Forbidden` du frontend Google, à ne pas confondre avec le `404` de
+l'entrée réseau fermée.
+
+Hors Cloud Run la variable `K_SERVICE` est absente : pas de jeton, et pas d'appel
+au serveur de métadonnées — sans quoi chaque requête locale attendrait un échec
+DNS.
+
+**La clé partagée.** `SORABEL_KEY` est vérifiée par un middleware ASGI
+(`mcp_server/http_server.py`), en comparaison à temps constant, et un client qui
+ne la présente pas reçoit un `403` portant l'enveloppe habituelle
+(`unauthorized_client`). Elle est la barrière 2 parce qu'IAM vérifie qu'un jeton
+`run.invoker` accompagne la requête, **pas lequel** : tout compte de service à
+qui ce rôle serait accordé parlerait à la gateway sans elle.
+
+Sans `SORABEL_KEY` dans l'environnement, le contrôle est inactif — c'est ce qui
+laisse `make serve-http` et la suite d'acceptance tourner en local. Le
+déploiement arme la barrière en montant le secret ; un service déployé sans ce
+secret est un service sans barrière 2, et rien ne le signalera.
 
 > **Après la soutenance**, remettre `sorabel-mcp` à *nombre minimal
 > d'instances* `0` et supprimer la passerelle NAT. Ce sont les deux seuls postes
@@ -378,20 +460,39 @@ Pas de connexion VPC ici : l'app bot ne parle qu'à Cloud Run et à Gemini, jama
 ### En ligne de commande, pour rejouer à l'identique
 
 ```sh
-REGISTRY=europe-north1-docker.pkg.dev/projet-perso-f22c7/sorabel
+P=projet-perso-f22c7
+REGISTRY=europe-north1-docker.pkg.dev/$P/sorabel
 TAG=$(git rev-parse --short HEAD)
+SECRETS=PG_SUPPORT=pg-support:latest,PG_COMMERCIAL=pg-commercial:latest
+SECRETS=$SECRETS,PG_DEV=pg-dev:latest,PG_CATALOG=pg-catalog:latest
+SECRETS=$SECRETS,GOOGLE_API_KEY=gemini-api-key:latest,SORABEL_KEY=sorabel-key:latest
 
 gcloud run deploy sorabel-mcp --image $REGISTRY/mcp:$TAG \
-  --region europe-north1 --no-allow-unauthenticated \
-  --service-account sorabel-mcp@projet-perso-f22c7.iam.gserviceaccount.com \
+  --region europe-north1 --no-allow-unauthenticated --ingress all \
+  --service-account sorabel-mcp@$P.iam.gserviceaccount.com \
   --network default --subnet default --vpc-egress all-traffic \
   --min-instances 1 --max-instances 3 \
-  --set-secrets PG_SUPPORT=pg-support:latest,GOOGLE_API_KEY=gemini-api-key:latest
+  --set-env-vars DATABASE_URL=… --set-secrets "$SECRETS"
 
 gcloud run services add-iam-policy-binding sorabel-mcp --region europe-north1 \
-  --member serviceAccount:sorabel-ui@projet-perso-f22c7.iam.gserviceaccount.com \
+  --member serviceAccount:sorabel-ui@$P.iam.gserviceaccount.com \
   --role roles/run.invoker
+
+gcloud run deploy sorabel-ui --image $REGISTRY/ui:$TAG \
+  --region europe-north1 --allow-unauthenticated \
+  --service-account sorabel-ui@$P.iam.gserviceaccount.com \
+  --min-instances 0 \
+  --set-env-vars MCP_URL=<url de sorabel-mcp>/mcp \
+  --set-secrets GOOGLE_API_KEY=gemini-api-key:latest,SORABEL_KEY=sorabel-key:latest
 ```
+
+Les quatre mots de passe PostgreSQL doivent tous être montés : la gateway ouvre
+un pool par rôle au premier appel du profil, y compris `sorabel_catalog` qui lit
+le schéma. Un secret manquant ne se voit qu'à l'appel du tool qui en dépend.
+
+`--set-env-vars` **remplace** toutes les variables, `--set-secrets` tous les
+secrets : réécrire les deux listes en entier à chaque déploiement, ou passer par
+`--update-env-vars` pour n'en changer qu'une.
 
 ---
 
@@ -409,11 +510,63 @@ Cloud Logging.
 `resource.type="cloud_run_revision"`, puis `jsonPayload.tool="ask_database"`
 pour ne voir que les appels SQL, refus compris.
 
-Enfin, depuis le poste, en pointant le client de test sur l'URL du service :
+### Les deux barrières, à l'appel
 
 ```sh
-MCP_URL=<url Cloud Run>/mcp make client PROFILE=support
+U=<url Cloud Run>/mcp
+T=$(gcloud auth print-identity-token)
+INIT='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
+
+en_tetes=(-H "Content-Type: application/json" -H "Accept: application/json, text/event-stream")
+
+# sans jeton -> 403 du frontend Google, en HTML : barrière 1
+curl -s -o /dev/null -w '%{http_code}\n' -X POST "$U" "${en_tetes[@]}" -d "$INIT"
+
+# jeton valide, clé absente ou fausse -> 403 de la gateway, en JSON : barrière 2
+curl -s -X POST "$U" -H "Authorization: Bearer $T" "${en_tetes[@]}" \
+  -H "x-sorabel-key: fausse" -d "$INIT"
+
+# les deux -> 200
+curl -s -o /dev/null -w '%{http_code}\n' -X POST "$U" -H "Authorization: Bearer $T" \
+  "${en_tetes[@]}" -H "x-sorabel-key: <le secret>" -d "$INIT"
 ```
 
-Le service exigeant une authentification, le client doit présenter un jeton
-d'identité — `gcloud auth print-identity-token`.
+`initialize` suffit : pas besoin d'une session MCP établie. Les deux refus se
+distinguent à l'œil — le premier est une page HTML de Google, le second
+l'enveloppe `{status, payload, message}` de la gateway avec le code
+`unauthorized_client`.
+
+### Le client de test, sans manipuler de jeton
+
+`gcloud` sait ouvrir un tunnel local authentifié, ce qui évite d'apprendre au
+client de test à signer ses requêtes :
+
+```sh
+gcloud run services proxy sorabel-mcp --region europe-north1 --port 8080
+# dans un autre terminal
+MCP_URL=http://127.0.0.1:8080/mcp make client PROFILE=support
+```
+
+Le proxy injecte le jeton d'identité mais **pas** la clé partagée : avec la
+barrière 2 armée, exporter `SORABEL_KEY` dans le terminal du client reste
+nécessaire.
+
+### L'index documentaire, tel qu'il sert
+
+L'index est dans l'image, pas dans un service : il n'y a rien à interroger côté
+GCP. L'image locale porte le même digest que la révision déployée, donc
+l'inspecter en local revient au même — sans NAT, sans jeton, sans coût :
+
+```sh
+docker run --rm -i --platform linux/amd64 --entrypoint python \
+  europe-north1-docker.pkg.dev/projet-perso-f22c7/sorabel/mcp:<tag> - <<EOPY
+import chromadb
+coll = chromadb.PersistentClient(path="/app/.chroma").get_collection("sorabel")
+print(coll.count(), coll.metadata)
+for m in coll.get(include=["metadatas"])["metadatas"][:10]:
+    print(m["doc_type"], m["doc_id"], m["reference"], m["version"], m["date"], m["titre"])
+EOPY
+```
+
+`list_sources` ne remplace pas cette inspection : le tool renvoie les catégories
+visibles par le profil, pas l'inventaire des documents.
