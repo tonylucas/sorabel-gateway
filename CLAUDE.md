@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## État du dépôt
 
 **`tests/acceptance/` est la spécification.** Cette suite est fournie, adossée
-aux exigences E1–E6 de `docs/cadrage_dsi.md`, et fait foi : elle fige les noms
-de champs, l'enveloppe `{status, payload, message}` et le format du journal. La
+aux exigences E1–E6 du brief (reprises dans le `README`), et fait foi : elle
+fige les noms de champs, l'enveloppe `{status, payload, message}` et le format du journal. La
 lire avant d'implémenter, et ne pas la modifier pour faire passer du code.
 
 En place et fourni : le corpus (`data/corpus/`, ~400 documents), `docs/schema.sql`,

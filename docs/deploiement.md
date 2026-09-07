@@ -14,16 +14,22 @@ Seul ce qui relève du code — migration, rôles, images — est joué depuis l
 via le `Makefile`, avec les mots de passe pris dans le `.env` local et jamais
 écrits dans le dépôt.
 
+> **Identifiants anonymisés.** Ce dépôt étant public, les noms de ressources
+> réels sont remplacés par des placeholders : `<pg-server>`, `<resource-group>`,
+> `<projet-infra>`, `<projet-api>`, `<base-voisine>`,
+> `<compte-de-facturation>`. Les régions, versions et dimensionnements sont
+> ceux du déploiement réel — c'est ce qui porte l'information.
+
 ## Ce qui existe déjà
 
 | | |
 |---|---|
-| Serveur PostgreSQL | `tony-velmo` — `tlucasRG`, Sweden Central, PG 18, Burstable B1ms, 32 Gio |
-| FQDN | `tony-velmo.postgres.database.azure.com` |
+| Serveur PostgreSQL | `<pg-server>` — `<resource-group>`, Sweden Central, PG 18, Burstable B1ms, 32 Gio |
+| FQDN | `<pg-server>.postgres.database.azure.com` |
 | Accès public | activé ; pare-feu : IP du poste + services Azure |
-| Base voisine | `velmo` — **sur le même serveur**, donc les rôles créés y seront visibles (§ 2.4) |
-| Projet d'infrastructure | `projet-perso-f22c7` (« Sorabel »), facturation activée |
-| Projet de la clé Gemini | `api-projet-perso`, **sans facturation** |
+| Base voisine | `<base-voisine>` — **sur le même serveur**, donc les rôles créés y seront visibles (§ 2.4) |
+| Projet d'infrastructure | `<projet-infra>` (« Sorabel »), facturation activée |
+| Projet de la clé Gemini | `<projet-api>`, **sans facturation** |
 | Région retenue | **`europe-north1`** (Finlande) — la région Cloud Run la plus proche de Sweden Central |
 
 ## Pourquoi deux projets Google Cloud
@@ -37,17 +43,17 @@ Les deux contraintes ne tiennent pas dans un projet. On en garde donc deux :
 
 | Projet | Facturation | Porte |
 |---|---|---|
-| `api-projet-perso` | **non** | la clé API Gemini, et rien d'autre |
-| `projet-perso-f22c7` | oui | Cloud Run, Artifact Registry, réseau, secrets |
+| `<projet-api>` | **non** | la clé API Gemini, et rien d'autre |
+| `<projet-infra>` | oui | Cloud Run, Artifact Registry, réseau, secrets |
 
 Une clé API Gemini est un identifiant portable : le service déployé dans le
 projet facturé la présente et est servi sur le quota free tier
-d'`api-projet-perso`. Rien à changer dans le code, seule la **valeur** de
+d'`<projet-api>`. Rien à changer dans le code, seule la **valeur** de
 `GOOGLE_API_KEY` change.
 
 ## Le budget, et ce qu'il impose
 
-Un seul crédit est actif sur le compte `018EF2-F0B44E-ED34CB` : le bonus
+Un seul crédit est actif sur le compte `<compte-de-facturation>` : le bonus
 mensuel du Google Developer Program, **8,59 € par mois**, de portée « all of
 Google Cloud Platform ». Le crédit *Free Trial* affiche encore 263,69 € mais il
 a expiré le 2025-08-15 : il n'est pas mobilisable.
@@ -65,7 +71,7 @@ largement dans le crédit.
 
 > Si cette fenêtre courte est trop contraignante, l'alternative n'est pas un
 > réglage mais un déplacement : **Azure Container Apps**, dans l'abonnement qui
-> porte déjà `tony-velmo`. Le service et la base sont alors dans le même cloud,
+> porte déjà `<pg-server>`. Le service et la base sont alors dans le même cloud,
 > ce qui supprime le VPC, le NAT, l'IP réservée et la règle de pare-feu — soit
 > le poste de coût principal et le risque de mise en ligne que le plan désignait
 > comme le plus élevé. Les PR 1 à 4 sont les mêmes dans les deux cas.
@@ -79,7 +85,7 @@ Tout ce qui suit se fait sur <https://console.cloud.google.com>, projet
 
 ### 1.1 Le projet de la clé Gemini
 
-Le projet `api-projet-perso` existe déjà et n'a **pas** de compte de
+Le projet `<projet-api>` existe déjà et n'a **pas** de compte de
 facturation associé : c'est cela, et rien d'autre, qui vaut le free tier à une
 clé. Ne pas lui en associer un.
 
@@ -92,7 +98,7 @@ c'est elle qu'on met en secret à l'étape 1.6.
 
 ### 1.2 Activer les API
 
-Sur le projet d'infrastructure — `projet-perso-f22c7`, pas celui du dessus.
+Sur le projet d'infrastructure — `<projet-infra>`, pas celui du dessus.
 *API et services → Activer des API et des services*, une par une :
 
 | API | Pour |
@@ -182,22 +188,22 @@ joués depuis le poste et les liront là.
 ## 2 · Azure — depuis le portail
 
 Sur <https://portal.azure.com>, abonnement *REMOTE_WCS_211537_DEV IA*,
-ressource **`tony-velmo`** (groupe `tlucasRG`).
+ressource **`<pg-server>`** (groupe `<resource-group>`).
 
 ### 2.1 Créer la base dédiée
 
-*tony-velmo → Paramètres → Bases de données → + Ajouter*
+*<pg-server> → Paramètres → Bases de données → + Ajouter*
 
 - Nom : `sorabel`
 - Jeu de caractères : `UTF8` · Classement : `en_US.utf8`
 
-La base voisine `velmo` reste intacte : on ajoute, on ne touche à rien.
+La base voisine `<base-voisine>` reste intacte : on ajoute, on ne touche à rien.
 
 ### 2.2 Autoriser l'IP de sortie de Cloud Run
 
 À faire **après** l'étape 1.3, avec l'adresse notée là-bas.
 
-*tony-velmo → Paramètres → Mise en réseau → Règles de pare-feu → + Ajouter une
+*<pg-server> → Paramètres → Mise en réseau → Règles de pare-feu → + Ajouter une
 règle de pare-feu*
 
 - Nom : `cloudrun-nat`
@@ -211,7 +217,7 @@ Cloud Run.
 
 ### 2.3 Vérifier que TLS est exigé
 
-*tony-velmo → Paramètres → Paramètres du serveur*, chercher
+*<pg-server> → Paramètres → Paramètres du serveur*, chercher
 `require_secure_transport`. Doit valoir **`on`**.
 
 C'est ce qui rend `sslmode=require` obligatoire côté client. C'est la valeur par
@@ -221,34 +227,34 @@ sans `sslmode` échouerait alors à la connexion, et non au premier `SELECT`.
 ### 2.4 Le serveur est partagé — ce qu'on ne fait pas, et pourquoi
 
 Les rôles PostgreSQL vivent au niveau du **serveur**, pas de la base : les
-quatre rôles créés par `make roles` seront visibles depuis `velmo`.
+quatre rôles créés par `make roles` seront visibles depuis `<base-voisine>`.
 
-La roadmap prévoyait un `REVOKE CONNECT ON DATABASE velmo` par rôle.
+La roadmap prévoyait un `REVOKE CONNECT ON DATABASE <base-voisine>` par rôle.
 `scripts/roles.py` ne le fait pas, et c'est volontaire : `PUBLIC` détient
 `CONNECT` par défaut, donc révoquer le droit *du rôle* ne lui retire rien — il
 continue de se connecter par `PUBLIC`. Le seul ordre efficace est
 
 ```sql
-REVOKE CONNECT ON DATABASE velmo FROM PUBLIC;
+REVOKE CONNECT ON DATABASE <base-voisine> FROM PUBLIC;
 ```
 
 qui porte sur **tous** les rôles du serveur, y compris ceux de l'application
-`velmo`. L'automatiser reviendrait à risquer de couper une autre application
-pour un gain nul ici : un rôle Sorabel qui se connecterait à `velmo` n'y a
+`<base-voisine>`. L'automatiser reviendrait à risquer de couper une autre application
+pour un gain nul ici : un rôle Sorabel qui se connecterait à `<base-voisine>` n'y a
 aucun `GRANT`, donc n'y lit rien. À jouer à la main, en connaissance de cause,
 si l'on veut fermer la porte plutôt que la pièce.
 
 **Limite de connexions** : le tier Burstable B1ms plafonne aux alentours de 50,
-**partagées avec `velmo`**. C'est ce plafond qui fixe `max_size=3` sur les
+**partagées avec `<base-voisine>`**. C'est ce plafond qui fixe `max_size=3` sur les
 pools, et non la charge attendue.
 
 ### En ligne de commande, pour vérifier
 
 ```sh
-az postgres flexible-server db list -g tlucasRG -s tony-velmo -o table
-az postgres flexible-server firewall-rule list -g tlucasRG -s tony-velmo -o table
+az postgres flexible-server db list -g <resource-group> -s <pg-server> -o table
+az postgres flexible-server firewall-rule list -g <resource-group> -s <pg-server> -o table
 az postgres flexible-server parameter show \
-  -g tlucasRG -s tony-velmo -n require_secure_transport --query value -o tsv
+  -g <resource-group> -s <pg-server> -n require_secure_transport --query value -o tsv
 ```
 
 ---
@@ -265,7 +271,7 @@ Deux blocs s'ajoutent à `.env.example`. D'abord l'adresse du serveur, une
 seule fois, en administrateur :
 
 ```sh
-DATABASE_URL=postgresql://<admin>:<mot de passe>@tony-velmo.postgres.database.azure.com/sorabel?sslmode=require
+DATABASE_URL=postgresql://<admin>:<mot de passe>@<pg-server>.postgres.database.azure.com/sorabel?sslmode=require
 ```
 
 `migrate.py` et `roles.py` s'y connectent : c'est la seule chose pour laquelle
@@ -297,7 +303,7 @@ facultatif** : un Mac Apple Silicon produit sinon une image `arm64` que Cloud
 Run refuse au démarrage, sans message explicite.
 
 ```sh
-REGISTRY=europe-north1-docker.pkg.dev/projet-perso-f22c7/sorabel
+REGISTRY=europe-north1-docker.pkg.dev/<projet-infra>/sorabel
 TAG=$(git rev-parse --short HEAD)
 
 docker build --platform linux/amd64 -t $REGISTRY/mcp:$TAG .
@@ -378,18 +384,18 @@ Pas de connexion VPC ici : l'app bot ne parle qu'à Cloud Run et à Gemini, jama
 ### En ligne de commande, pour rejouer à l'identique
 
 ```sh
-REGISTRY=europe-north1-docker.pkg.dev/projet-perso-f22c7/sorabel
+REGISTRY=europe-north1-docker.pkg.dev/<projet-infra>/sorabel
 TAG=$(git rev-parse --short HEAD)
 
 gcloud run deploy sorabel-mcp --image $REGISTRY/mcp:$TAG \
   --region europe-north1 --no-allow-unauthenticated \
-  --service-account sorabel-mcp@projet-perso-f22c7.iam.gserviceaccount.com \
+  --service-account sorabel-mcp@<projet-infra>.iam.gserviceaccount.com \
   --network default --subnet default --vpc-egress all-traffic \
   --min-instances 1 --max-instances 3 \
   --set-secrets PG_SUPPORT=pg-support:latest,GOOGLE_API_KEY=gemini-api-key:latest
 
 gcloud run services add-iam-policy-binding sorabel-mcp --region europe-north1 \
-  --member serviceAccount:sorabel-ui@projet-perso-f22c7.iam.gserviceaccount.com \
+  --member serviceAccount:sorabel-ui@<projet-infra>.iam.gserviceaccount.com \
   --role roles/run.invoker
 ```
 

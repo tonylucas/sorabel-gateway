@@ -2,6 +2,39 @@
 
 Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel électrique et d'outillage professionnel. La gateway expose, via un **serveur MCP**, le corpus documentaire (fiches techniques, notices, procédures SAV, notes internes) et la base SQL (produits, stocks, commandes, clients, ventes) à tous les outils internes — bot Slack du support, IDE des développeurs, poste des commerciaux — sous une gouvernance commune : matrice d'accès par profil, lecture seule stricte côté SQL, journal de tous les appels.
 
+---
+
+> **Serveur MCP gouverné** exposant à plusieurs clients internes (bot Slack du
+> support, IDE, poste commercial) deux capacités sur les données d'un
+> distributeur B2B : **RAG hybride** sur 350 documents techniques et
+> **Text-to-SQL en lecture seule** — sous une matrice d'accès unique et un
+> journal exhaustif des appels.
+> Projet de fin de spécialisation en IA agentique, construit de zéro sur un
+> brief imposé et une suite d'acceptance fournie qui fait office de contrat.
+
+<p align="center">
+  <a href="docs/img/flux-complet.png">
+    <img src="docs/img/flux-complet.png" alt="Flux complet : corpus et base SQL → ingestion et indexation → retrieval hybride → serveur MCP → clients" width="820">
+  </a>
+  <br><em>Le flux complet, des sources aux clients — cliquer pour agrandir.</em>
+</p>
+
+| Ce que le projet a demandé | Où le lire |
+|---|---|
+| **Protocole MCP** : deux transports (stdio, Streamable HTTP), catalogue de 8 tools, tool de haut niveau *et* briques utilisables séparément | [`mcp_server/`](mcp_server/), [`gateway/tools.py`](gateway/tools.py) |
+| **RAG avancé** : dédoublonnage par version, chunking et métadonnées, dense + BM25 fusionnés par RRF, porte de pertinence plutôt qu'hallucination | [`ingest/`](ingest/), [`retrieval/`](retrieval/) |
+| **Text-to-SQL sûr** : schéma commenté en prompt, validation `sqlglot`, `LIMIT` injecté, rôles PostgreSQL par profil — trois barrières indépendantes, pas une | [`sql/`](sql/), [`scripts/roles.py`](scripts/roles.py) |
+| **Autorisation déclarative** hors du code, appliquée à l'entrée de tous les appels, chacun journalisé — autorisé comme refusé | [`access.yaml`](access.yaml), [`gateway/access.py`](gateway/access.py) |
+| **Évaluation chiffrée** plutôt qu'affirmée : deux métriques, un jeu de questions versionné | [`eval/`](eval/), [`eval/rapport_gain.md`](eval/rapport_gain.md) |
+| **Client agentique et déploiement** : app bot Next.js + CopilotKit, images Docker, Cloud Run | [`ui/`](ui/), [`Dockerfile`](Dockerfile), [`docs/deploiement.md`](docs/deploiement.md) |
+
+**Mesuré, pas affirmé** — recherche par référence exacte (`REF-8842`) : MRR
+**0.00** en dense → **1.00** en hybride · pertinence sémantique : Recall@5
+**79 % → 93 %** · Text-to-SQL **24/24**, dont 8 cas dont le succès *est* un
+refus · suite d'acceptance E1–E6 verte.
+
+---
+
 ## Features
 
 - Recherche documentaire hybride : dense + lexicale fusionnées par RRF, routage par référence exacte, réponses sourcées (titre + référence + date), refus explicite hors corpus — **gain mesuré dans `eval/rapport_gain.md`**
@@ -12,6 +45,20 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 - Client MCP de test jouable avec les deux profils, en stdio ou en HTTP (`scripts/mcp_client.py`)
 - App bot de démonstration (Next.js + CopilotKit, agent Gemini) branchée sur `/mcp` comme le serait Slack
 
+
+## Les exigences imposées
+
+Le brief fixe six exigences ; elles sont la raison d'être de chaque choix
+d'architecture, et la suite d'acceptance les vérifie une par une.
+
+| | |
+|---|---|
+| **E1** | Toute réponse documentaire cite ses sources (titre + référence + date) ; hors corpus, l'outil le dit au lieu d'inventer |
+| **E2** | La recherche trouve aussi bien par référence exacte (`REF-8842`) que par question en langage naturel |
+| **E3** | Tout SQL exécuté est en lecture seule, restreint aux tables du profil ; la requête générée est renvoyée avec son résultat |
+| **E4** | Un même serveur MCP sert tous les clients ; chacun n'accède qu'aux tools, collections et tables prévus par la matrice |
+| **E5** | Tout appel est journalisé, autorisé ou refusé ; les colonnes sensibles ne sortent jamais pour le profil support |
+| **E6** | Le gain de la recherche avancée sur la recherche simple est mesuré et documenté |
 
 ## Stack
 
@@ -99,7 +146,8 @@ data/
   corpus/             # ~400 documents : fiches/ notices/ (PDF), sav/ (HTML), notes/ (Markdown)
   sorabel.db          # base SQL (hors git — générée par make seed, schéma dans docs/schema.sql)
 docs/
-  cadrage_dsi.md      # exigences E1–E6, matrice d'accès, contrat d'intégration
+  deploiement.md      # ce qui se configure à la main, et pourquoi (identifiants anonymisés)
+  img/flux-complet.png
   schema.sql          # schéma commenté de la base (colonnes sensibles signalées)
 eval/
   questions_rag.jsonl # questions documentaires : couvertes, hors corpus, par référence exacte
