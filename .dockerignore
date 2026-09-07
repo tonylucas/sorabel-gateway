@@ -1,0 +1,24 @@
+# Ce qui n'a rien à faire dans le contexte de build : soit reconstruit dans
+# l'image, soit sans rapport avec le service.
+.git
+.github
+.venv
+.chroma
+.docker-data
+.pr-lens
+__pycache__
+**/__pycache__
+*.egg-info
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.env
+.env.*
+logs
+data/sorabel.db*
+docs
+eval
+tests
+scripts
+ui
+node_modules

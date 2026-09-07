@@ -1,4 +1,4 @@
-.PHONY: install up down seed migrate roles ingest eval eval-sql test fmt lint serve serve-http client demo journal ui ui-fmt ui-install ui-clean
+.PHONY: install up down images push seed migrate roles ingest eval eval-sql test fmt lint serve serve-http client demo journal ui ui-fmt ui-install ui-clean
 
 install:
 	uv sync
@@ -26,6 +26,20 @@ eval-sql:
 
 up:
 	docker compose up -d
+
+# Construites sur le poste, poussées telles quelles : pas de Cloud Build.
+# `--platform linux/amd64` n'est pas facultatif — un Mac Apple Silicon produit
+# sinon une image arm64 que Cloud Run refuse au démarrage, sans message clair.
+REGISTRY ?= europe-north1-docker.pkg.dev/projet-perso-f22c7/sorabel
+TAG ?= $(shell git rev-parse --short HEAD)
+
+images:
+	docker build --platform linux/amd64 -t $(REGISTRY)/mcp:$(TAG) .
+	docker build --platform linux/amd64 -t $(REGISTRY)/ui:$(TAG) ui/
+
+push: images
+	docker push $(REGISTRY)/mcp:$(TAG)
+	docker push $(REGISTRY)/ui:$(TAG)
 
 down:
 	docker compose down
