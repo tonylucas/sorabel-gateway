@@ -43,3 +43,7 @@ data/sorabel.db*
 
 # PR Lens writes its previews here. They are rebuilt on demand.
 .pr-lens/
+
+# Skills Claude Code personnels : outillage hors sujet pour ce dépôt.
+.agents/
+skills-lock.json

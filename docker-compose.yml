@@ -15,7 +15,7 @@ services:
       retries: 12
 
   # Le PostgreSQL de développement. Même version majeure que le serveur Azure
-  # (`tony-velmo`, PG 18) : un dialecte qui passe ici doit passer là-bas.
+  # géré (PG 18) : un dialecte qui passe ici doit passer là-bas.
   postgres:
     image: postgres:18
     ports:
