@@ -24,7 +24,7 @@ DB_PATH = REPO_ROOT / "data" / "sorabel.db"
 SERVER_MODULE = "mcp_server.server"
 CALL_TIMEOUT = float(os.environ.get("GATEWAY_TEST_TIMEOUT", "30"))
 
-#: Catalogue et matrice d'accès imposés par docs/cadrage_dsi.md.
+#: Catalogue et matrice d'accès imposés par le brief ; cf. access.yaml.
 ALL_TOOLS = (
     "answer_question", "search_docs", "get_document", "list_sources",
     "ask_database", "get_schema", "check_stock", "order_status",
