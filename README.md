@@ -98,6 +98,13 @@ suffit à fournir `DATABASE_URL` et les mots de passe de rôle de développement
 L'app bot est un client MCP parmi d'autres : elle simule le bot Slack du
 support. Elle ne porte aucune logique métier — tout passe par `/mcp`.
 
+<p align="center">
+  <a href="docs/img/app-bot.png">
+    <img src="docs/img/app-bot.png" alt="L'app bot : une question Text-to-SQL avec la requête exécutée repliée au-dessus de la réponse, puis une recherche par référence exacte qui renvoie la fiche REF-5719 sourcée" width="420">
+  </a>
+  <br><em>Les deux capacités côte à côte : Text-to-SQL, requête générée affichée avec le résultat ; puis recherche par référence exacte, fiche sourcée.</em>
+</p>
+
 ```bash
 cp ui/.env.example ui/.env         # y coller GOOGLE_API_KEY
 make ui-install                    # npm install
